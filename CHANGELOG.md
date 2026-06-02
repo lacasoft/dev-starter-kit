@@ -28,4 +28,4 @@ Primera versión estable del Dev Starter Kit (arquitectura de archivos reales + 
 - **scripts/validate.cjs** + CI: validación zero-dep de frontmatter, JSON y sintaxis.
 
 ### Notes
-- Distribución por `npx github:lacasoft/dev-starter-kit` (privado). `main` debe estar siempre verde.
+- Distribución por `npx github:lacasoft/dev-starter-kit` (privado). `master` debe estar siempre verde.
