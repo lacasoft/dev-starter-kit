@@ -64,7 +64,7 @@ Edita `components.json`:
 ## Versionado y release
 
 - SemVer en `package.json` + entrada en `CHANGELOG.md`.
-- Como se distribuye por `npx github:`, los proyectos toman la rama por defecto: **`main` siempre debe estar verde** (CI en cada PR). Usa ramas `feat/…`, `fix/…` y PRs.
+- Como se distribuye por `npx github:`, los proyectos toman la rama por defecto: **`master` siempre debe estar verde** (CI en cada PR). Usa ramas `feat/…`, `fix/…` y PRs.
 - Para fijar versiones en un proyecto concreto: `npx github:lacasoft/dev-starter-kit#v1.2.0`.
 
 ## Probar localmente

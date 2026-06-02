@@ -36,7 +36,7 @@ npx github:lacasoft/dev-starter-kit --yes --all   # desatendido (todo)
 npx github:lacasoft/dev-starter-kit#v1.2.0     # fijar una versión (tag)
 ```
 
-Toma siempre la última versión de `main` (o el tag indicado). Repo **privado**: funciona con tu auth de `git`/`gh`.
+Toma siempre la última versión de `master` (o el tag indicado). Repo **privado**: funciona con tu auth de `git`/`gh`.
 
 Alternativa (clone local):
 
@@ -121,7 +121,7 @@ Sin claude-flow, nuestra capa aporta el runtime completo (settings + helpers + a
 
 ## Mantenimiento
 
-Repo **privado** distribuido por `npx github:` → la rama **`main` debe estar siempre verde**.
+Repo **privado** distribuido por `npx github:` → la rama **`master` debe estar siempre verde**.
 
 - **Validar** antes de commitear: `npm run validate` (frontmatter, JSON, sintaxis; zero-dep).
 - **CI** (`.github/workflows/ci.yml`): valida + smoke-test del instalador en los 8 stacks (dry-run) en cada PR.
@@ -134,6 +134,6 @@ Repo **privado** distribuido por `npx github:` → la rama **`main` debe estar s
 
 ```bash
 git remote add origin git@github.com:lacasoft/dev-starter-kit.git
-git push -u origin main
+git push -u origin master
 ```
 A partir de ahí, cualquier proyecto: `npx github:lacasoft/dev-starter-kit`.
