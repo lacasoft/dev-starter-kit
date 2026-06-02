@@ -1,0 +1,19 @@
+# Dependencias (el kit es zero-dep; esto es por si alguien instala algo en dev)
+node_modules/
+
+# Artefactos de pruebas locales del instalador
+/tmp-test/
+*.log
+
+# SO / editores
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# Memoria/runtime que NO pertenece al repo del kit (sí al de cada proyecto destino)
+.claude/memory/
+.claude-flow/
+.swarm/
+.env
+.env.*

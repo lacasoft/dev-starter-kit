@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validar integridad del kit
+        run: node scripts/validate.cjs
+      - name: Smoke test del instalador (dry-run por stack)
+        run: |
+          set -e
+          for s in backend/nestjs backend/fastapi backend/php \
+                   frontend/angular frontend/react \
+                   mobile/react-native mobile/flutter blockchain/solidity; do
+            echo "--- $s ---"
+            tmp="$(mktemp -d)"
+            ( cd "$tmp" && node "$GITHUB_WORKSPACE/install.js" --yes --no-flow --no-external --stack "$s" --dry-run >/dev/null )
+            rm -rf "$tmp"
+          done
+          echo "✅ instalador OK en todos los stacks"

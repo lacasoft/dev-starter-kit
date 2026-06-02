@@ -1,0 +1,92 @@
+{
+  "version": "2.0.0",
+  "description": "Manifiesto de componentes externos curados. El instalador (install.js) los aplica por stack. Revisados uno a uno antes de integrar.",
+
+  "claudeFlow": {
+    "enabled": true,
+    "initCommand": "npx -y claude-flow@alpha init --force",
+    "note": "Enjambre híbrido. Instala el runtime real (MCP + agentes + hooks de claude-flow). Opcional al aplicar."
+  },
+
+  "cctCli": "npx -y claude-code-templates@latest",
+
+  "shared": {
+    "agents": [
+      { "id": "development-tools/code-reviewer", "rec": "integrar", "why": "review multi-lenguaje con gate de seguridad/merge" }
+    ],
+    "skills": [
+      { "id": "development/clean-code", "rec": "integrar", "why": "estándares base para todos los stacks" },
+      { "id": "development/senior-security", "rec": "integrar", "why": "threat modeling/pentest transversal" }
+    ],
+    "pluginMarketplaces": [
+      { "id": "anthropics/claude-plugins-official", "rec": "integrar", "why": "fuente oficial de plugins" }
+    ],
+    "pluginsOptional": [
+      { "id": "code-review@claude-plugins-official", "why": "review automatizado de PRs" }
+    ]
+  },
+
+  "stacks": {
+    "backend": {
+      "agents": [
+        { "id": "database/database-architect", "rec": "integrar", "why": "modelado de datos (declara model: sonnet)" },
+        { "id": "development-tools/test-engineer", "rec": "integrar", "why": "marco de testing (pirámide/gates)" },
+        { "id": "expert-advisors/architect-review", "rec": "opcional", "why": "consistencia SOLID/arquitectura" }
+      ],
+      "skills": [
+        { "id": "development/docker-expert", "rec": "integrar", "why": "contenedores backend" }
+      ]
+    },
+    "frontend": {
+      "agents": [
+        { "id": "development-team/frontend-developer", "rec": "integrar", "why": "reglas web (a11y, state, cobertura)" },
+        { "id": "development-team/ui-ux-designer", "rec": "integrar", "why": "auditoría UX (rol ausente en core)" }
+      ],
+      "skills": [
+        { "id": "creative-design/frontend-design", "rec": "integrar", "why": "calidad visual" },
+        { "id": "creative-design/ui-design-system", "rec": "integrar", "why": "design tokens/handoff" },
+        { "id": "development/senior-frontend", "rec": "opcional", "why": "solapa con frontend-design" }
+      ],
+      "pluginsOptional": [
+        { "id": "ui-ux-pro-max@ui-ux-pro-max-skill", "marketplace": "nextlevelbuilder/ui-ux-pro-max-skill", "why": "inteligencia de diseño multi-stack" }
+      ]
+    },
+    "mobile": {
+      "agents": [
+        { "id": "development-team/frontend-developer", "rec": "integrar", "why": "desarrollo de UI" },
+        { "id": "development-team/ui-ux-designer", "rec": "integrar", "why": "auditoría UX" }
+      ],
+      "skills": [
+        { "id": "creative-design/frontend-design", "rec": "integrar" },
+        { "id": "creative-design/ui-design-system", "rec": "integrar" }
+      ],
+      "pluginsOptional": [
+        { "id": "ui-ux-pro-max@ui-ux-pro-max-skill", "marketplace": "nextlevelbuilder/ui-ux-pro-max-skill" }
+      ]
+    },
+    "blockchain": { "agents": [], "skills": [] }
+  },
+
+  "byStackId": {
+    "frontend/react": { "npm": ["framer-motion"], "tools": ["react-doctor"] },
+    "mobile/react-native": { "npm": ["react-native-reanimated"], "tools": ["react-doctor"] }
+  },
+
+  "externalSkillCatalogs": {
+    "alirezarezvani/claude-skills": {
+      "license": "MIT",
+      "note": "Catálogo masivo (330+ skills). Del dominio engineering destilamos a la capa base: ci-cd, performance-profiling, migration, monorepo, release, ship-gate, iac. El resto se puede cherry-pickear on-demand.",
+      "marketplace": "/plugin marketplace add alirezarezvani/claude-skills",
+      "caution": "NO instalar en bloque (ruido + dominios no técnicos). Cherry-pick por plugin/dominio."
+    }
+  },
+
+  "discarded": {
+    "thedotmack/claude-mem": "Duplica nuestro .claude/memory/ y registra hooks propios (SessionStart/End). No conviven. Mantenemos memoria versionable por-proyecto.",
+    "development-tools/mcp-expert": "Sus reglas operan sobre el repo del CLI de davila7 (cli-tool/components/mcps), no sobre proyectos reales.",
+    "git/git-flow-manager": "Solo si el equipo usa Git Flow (no trunk-based). Dejar a criterio por proyecto.",
+    "web-development/react-best-practices": "Duplica la skill vercel:react-best-practices ya disponible en el harness.",
+    "cct-hooks": "lint-on-save / security-scanner / smart-formatting / tdd-gate: su instalador hace merge shallow por evento y PISA nuestros arrays Pre/PostToolUse. Su intención (format+lint+secret-scan) ya está replicada en .claude/helpers/hook-handler.cjs.",
+    "framer-motion (como skill)": "Es dependencia npm de proyecto, no componente .claude. Se sugiere instalar en el proyecto, no en .claude."
+  }
+}
