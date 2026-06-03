@@ -31,17 +31,57 @@ function readPayload() {
 }
 
 // Escaneo ligero de secretos en contenido recién escrito (no bloquea, solo avisa).
+// Catálogo por proveedor + allowlist de falsos positivos, destilado de Cyber Neo
+// (github.com/Hainrixz/cyber-neo, MIT). Pares [nombre, regex].
 const SECRET_PATTERNS = [
-  /\b(?:sk|pk)_(?:live|test)_[A-Za-z0-9]{16,}/, // Stripe
-  /\bAKIA[0-9A-Z]{16}\b/, // AWS access key
-  /\bgh[pousr]_[A-Za-z0-9]{30,}\b/, // GitHub token
-  /-----BEGIN (?:RSA |EC )?PRIVATE KEY-----/, // claves privadas
-  /\b[A-Za-z0-9_-]*(?:api[_-]?key|secret|password|token)\b\s*[:=]\s*["'][^"']{12,}["']/i,
+  ["AWS Access Key", /\bAKIA[0-9A-Z]{16}\b/],
+  ["AWS Secret Key", /aws_secret_access_key\s*[=:]\s*['"]?[A-Za-z0-9/+=]{40}['"]?/i],
+  ["GCP API Key", /\bAIza[0-9A-Za-z_-]{35}\b/],
+  ["GCP Service Account", /"type"\s*:\s*"service_account"/],
+  ["Azure Connection String", /AccountName=[^;]+;AccountKey=[A-Za-z0-9+/=]{88}/i],
+  ["GitHub Token", /\bgh[posru]_[A-Za-z0-9_]{36,}\b/],
+  ["GitHub Fine-Grained PAT", /\bgithub_pat_[A-Za-z0-9_]{22,}\b/],
+  ["GitLab PAT", /\bglpat-[A-Za-z0-9_-]{20}\b/],
+  ["Slack Token", /\bxox[baprs]-[A-Za-z0-9-]{10,}/],
+  ["Slack Webhook", /https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]{8,}\/B[A-Z0-9]{8,}\/[A-Za-z0-9]{24}/],
+  ["Stripe Secret Key", /\b[rs]k_live_[0-9a-zA-Z]{24,}\b/],
+  ["SendGrid API Key", /\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b/],
+  ["Twilio API Key", /\bSK[0-9a-fA-F]{32}\b/],
+  ["Shopify Token", /\bshp(?:at|ss|ca|pa)_[a-fA-F0-9]{32}\b/],
+  ["npm Token", /\bnpm_[A-Za-z0-9]{36}\b/],
+  ["PyPI Token", /\bpypi-[A-Za-z0-9_-]{16,}/],
+  ["OpenAI Key", /\bsk-(?:proj-)?[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20,}/],
+  ["OpenAI Project Key", /\bsk-proj-[A-Za-z0-9_-]{40,}/],
+  ["Anthropic Key", /\bsk-ant-[A-Za-z0-9_-]{40,}/],
+  ["Google OAuth Token", /\bya29\.[A-Za-z0-9_-]{20,}/],
+  ["PostgreSQL URL", /postgres(?:ql)?:\/\/[^\s'"]+:[^\s'"]+@[^\s'"]+/],
+  ["MySQL URL", /mysql:\/\/[^\s'"]+:[^\s'"]+@[^\s'"]+/],
+  ["MongoDB URL", /mongodb(?:\+srv)?:\/\/[^\s'"]+:[^\s'"]+@[^\s'"]+/],
+  ["Redis URL", /redis:\/\/[^\s'"]*:[^\s'"]+@[^\s'"]+/],
+  ["Private Key", /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY(?: BLOCK)?-----/],
+  ["JWT", /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/],
+  ["Bearer Token", /authorization['"]?\s*[=:]\s*['"]?Bearer\s+[A-Za-z0-9_.-]{20,}/i],
+  ["Hardcoded Password", /(?:password|passwd|pwd)\s*[=:]\s*['"][^'"]{8,}['"]/i],
+  ["Hardcoded Secret", /(?:secret|secret[_-]?key)\s*[=:]\s*['"][^'"]{8,}['"]/i],
+  ["Hardcoded API Key", /(?:api[_-]?key|apikey)\s*[=:]\s*['"][^'"]{8,}['"]/i],
+  ["Hardcoded Token", /(?:access[_-]?token|auth[_-]?token)\s*[=:]\s*['"][^'"]{8,}['"]/i],
+];
+
+// Falsos positivos comunes: placeholders, claves de test, interpolaciones.
+const SECRET_ALLOWLIST = [
+  /(?:your|my|example|fake|dummy|placeholder|sample|changeme|redacted|insert|replace)[_-]/i,
+  /x{3,}|<your|\$\{|\{\{/i,
+  /\bsk_test_|\bpk_test_/,
+  /example\.(?:com|org|net)/i,
 ];
 
 function scanSecrets(text) {
   if (!text) return null;
-  for (const re of SECRET_PATTERNS) if (re.test(text)) return re;
+  for (const line of String(text).split(/\r?\n/)) {
+    if (line.length > 2000) continue; // saltar líneas minificadas/binarias
+    if (SECRET_ALLOWLIST.some((rx) => rx.test(line))) continue; // placeholder/test → ignora
+    for (const [name, re] of SECRET_PATTERNS) if (re.test(line)) return name;
+  }
   return null;
 }
 
@@ -80,7 +120,7 @@ switch (action) {
     }
     const content = toolInput.content || toolInput.new_string || "";
     const hit = scanSecrets(content);
-    if (hit) console.error(`⚠️  Posible secreto en el contenido a escribir (patrón ${hit}). Usa env vars.`);
+    if (hit) console.error(`⚠️  Posible secreto en el contenido a escribir (${hit}). Usa variables de entorno / secret manager.`);
     break;
   }
 

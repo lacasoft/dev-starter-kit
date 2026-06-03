@@ -37,7 +37,7 @@ stacks/<categoria>/{_common,<stack>}/.claude/CLAUDE.md   # overlays por stack
 
 ## Añadir una SKILL
 
-1. `shared/.claude/skills/<nombre>/SKILL.md` con frontmatter `name` + `description` (1 frase de cuándo usarla).
+1. `shared/.claude/skills/<nombre>/SKILL.md` con frontmatter `name` + `description`. La `description` dice **solo CUÁNDO** usar la skill (empieza con "Úsalo cuando/para…", síntomas y disparadores), **nunca resume el workflow ni los pasos**: si la descripción enumera el proceso, el agente sigue el resumen en vez de leer la skill (regla CSO). Pon el "qué hace" y los pasos en el cuerpo, no en el frontmatter.
 2. Cuerpo: persona experta + metodología + técnicas + reglas. Si la destilas de un repo externo, **acredita la fuente y su licencia**.
 3. `npm run validate`.
 

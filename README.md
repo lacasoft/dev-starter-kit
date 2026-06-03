@@ -67,7 +67,7 @@ En modo claude-flow se omiten solo los 5 core (los cubre `agents/core/*` de clau
 
 ## Skills incluidas (capa base)
 
-**Flujo de trabajo**: `tdd` · `diagnose` · `grill-me` · `handoff` · `swarm-orchestration`
+**Flujo de trabajo**: `tdd` · `diagnose` · `grill-me` · `handoff` · `swarm-orchestration` · `verification` · `code-review-response` · `git-worktrees`
 **Ingeniería/entrega**: `ci-cd` · `performance-profiling` · `migration` · `monorepo` · `release` · `ship-gate` · `iac`
 
 Las de ingeniería se destilaron (en español, a nuestra profundidad) del catálogo MIT

@@ -2,6 +2,21 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](https://semver.org/).
 
+## [1.2.0] - 2026-06-04
+
+Integración de fuentes externas (MIT) revisadas a fondo y destiladas a la capa base en español. Ver `components.json` → `distilled` para la atribución completa.
+
+### Added
+- **3 skills nuevas**: `verification` (gate de evidencia antes de declarar hecho), `git-worktrees` (workspace aislado sin pelear con el harness), `code-review-response` (responder a una revisión con rigor técnico, sin acuerdo performativo). Destiladas de [Superpowers](https://github.com/obra/superpowers) (MIT).
+- **CWE Top 25 + OWASP 2025** en `agents/security-engineer.md` (con las categorías nuevas A03 Supply Chain y A10 Mishandling of Exceptional Conditions) y **CI/CD security de GitHub Actions** en `skills/ship-gate`. Destilado de [Cyber Neo](https://github.com/Hainrixz/cyber-neo) (MIT).
+- **Context7** referenciado como plugin/MCP opcional (shared) en `components.json` + instrucción anti-alucinación de APIs en `agents/researcher.md`. De [Context7](https://github.com/upstash/context7) (MIT).
+
+### Changed
+- **Scanner de secretos** (`helpers/hook-handler.cjs`): de 3 a ~30 patrones por proveedor (AWS/GCP/GitHub/Slack/Stripe/OpenAI/Anthropic/DB URLs/claves privadas…) **con allowlist** de placeholders y claves de test, reduciendo falsos positivos.
+- **§8 Completitud** de `CLAUDE.base.md`: añade el gate "evidencia antes que afirmaciones" (no digas "pasa/compila/listo" sin correr la verificación en el turno).
+- **`skills/tdd`**: Ley de hierro + tabla de racionalizaciones. **`skills/diagnose`**: circuit-breaker de 3 hipótesis (≥3 arreglos fallidos = problema de arquitectura) + instrumentación por capas. **`skills/swarm-orchestration`**: patrón subagent-driven secuencial (doble review + estados). **`skills/handoff`**: vocabulario de estados.
+- **Regla CSO** en `CONTRIBUTING.md` (la `description` dice solo *cuándo*, no el workflow) aplicada a las descriptions de `swarm-orchestration`, `release` y `migration`.
+
 ## [1.1.0] - 2026-06-03
 
 ### Added

@@ -19,10 +19,12 @@
       { "id": "development/senior-security", "rec": "integrar", "why": "threat modeling/pentest transversal" }
     ],
     "pluginMarketplaces": [
-      { "id": "anthropics/claude-plugins-official", "rec": "integrar", "why": "fuente oficial de plugins" }
+      { "id": "anthropics/claude-plugins-official", "rec": "integrar", "why": "fuente oficial de plugins" },
+      { "id": "upstash/context7", "rec": "opcional", "why": "marketplace de Context7 (docs de librerías actualizadas, anti-alucinación de APIs)" }
     ],
     "pluginsOptional": [
-      { "id": "code-review@claude-plugins-official", "why": "review automatizado de PRs" }
+      { "id": "code-review@claude-plugins-official", "why": "review automatizado de PRs" },
+      { "id": "context7-plugin@context7-marketplace", "marketplace": "upstash/context7", "rec": "opcional", "why": "MCP remoto (https://mcp.context7.com/mcp) que inyecta docs versionadas de librerías. Sin API key obligatoria (free tier; la key gratis solo sube rate limits). No pisa el .mcp.json de claude-flow (servidor namespaced 'context7' dentro del plugin). Transversal a todos los stacks. Privacidad: solo viaja el nombre de librería + la pregunta, nunca metas secretos ni código propietario en la query." }
     ]
   },
 
@@ -81,7 +83,29 @@
     }
   },
 
+  "distilled": {
+    "note": "Fuentes externas (MIT) destiladas a la capa base en español, a nuestra profundidad. No se instalan enteras; se acreditan en cada archivo afectado.",
+    "Hainrixz/cyber-neo": {
+      "license": "MIT",
+      "into": ["agents/security-engineer.md (CWE Top 25 + OWASP 2025, A03/A10 nuevos)", "helpers/hook-handler.cjs (catálogo ~30 patrones de secretos + allowlist)", "skills/ship-gate (CI/CD security de GitHub Actions + supply-chain)"],
+      "why": "Knowledge base de patrones grep-ready, CWE/OWASP 2025 y secret scanner con allowlist que nuestra capa (metodología sin patrones concretos) no tenía."
+    },
+    "obra/superpowers": {
+      "license": "MIT",
+      "into": ["skills/verification (gate de evidencia)", "skills/git-worktrees", "skills/code-review-response", "skills/tdd (Iron Law + racionalizaciones)", "skills/diagnose (circuit-breaker 3 hipótesis + instrumentación por capas)", "skills/swarm-orchestration (subagent-driven secuencial + estados)", "skills/handoff (vocabulario de estados)", "CONTRIBUTING.md (regla CSO de descriptions)"],
+      "why": "Metodología zero-dep con gates accionables anti-racionalización y patrones de ejecución por subagente que complementan nuestras skills."
+    },
+    "upstash/context7": {
+      "license": "MIT",
+      "referencedAs": "plugin/MCP en shared.pluginsOptional (no destilado: se instala como externo)",
+      "into": ["agents/researcher.md (consulta docs de librería antes de inventar APIs)"],
+      "why": "Docs de librerías versionadas/actualizadas; anti-alucinación de APIs. Transversal a todos los stacks, sin API key obligatoria."
+    }
+  },
+
   "discarded": {
+    "obra/superpowers (plugin completo)": "DESTILADO (ver distilled); NO instalar el plugin entero: su hook SessionStart inyecta un bloque grande en cada sesión y su registro ('your human partner', tono '<EXTREMELY_IMPORTANT>') choca con nuestro estilo sobrio en español; sus skills están acopladas por cross-refs internas. Destilamos los patrones, no los enlaces.",
+    "Hainrixz/cyber-neo (skill completa)": "DESTILADO (ver distilled); NO instalar la skill entera: solapa con ship-gate, escribe el reporte en ~/Desktop y trae branding de comunidad. Aprovechamos su knowledge base (CWE/OWASP/secretos/CI-CD), no su orquestación ni references largos por lenguaje.",
     "thedotmack/claude-mem": "Duplica nuestro .claude/memory/ y registra hooks propios (SessionStart/End). No conviven. Mantenemos memoria versionable por-proyecto.",
     "development-tools/mcp-expert": "Sus reglas operan sobre el repo del CLI de davila7 (cli-tool/components/mcps), no sobre proyectos reales.",
     "git/git-flow-manager": "Solo si el equipo usa Git Flow (no trunk-based). Dejar a criterio por proyecto.",

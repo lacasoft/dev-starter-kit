@@ -12,10 +12,11 @@ Cuando detectes intención de desplegar ("deploy", "push to prod", "go live", "r
 
 ## Categorías auditadas
 1. **Seguridad**: secretos hardcodeados o `.env` commiteado, dependencias con CVEs (`npm audit`/`pip-audit`), authz deny-by-default, validación de input, CORS/headers, TLS.
+   - **CI/CD (GitHub Actions)**: sin **script injection** — `${{ github.event.* }}` (título/cuerpo de issue/PR, comentarios, `head_ref`) interpolado en un bloque `run:` es RCE; pásalo por `env:` y referencia `$VAR`. Sin `pull_request_target` que haga checkout del código del PR. `permissions:` mínimas a nivel top (`contents: read`), nunca `write-all`. Actions de terceros **pinneadas por SHA** (no `@v1`/`@main`, refs mutables). Secretos nunca en `echo`/`env`/CLI args (quedan en logs); usa OIDC en vez de claves estáticas.
 2. **Datos**: migraciones reversibles y aplicadas, sin pérdida de datos, backups verificados, índices en columnas calientes.
 3. **Despliegue**: variables de entorno de prod presentes (fail-fast), health/readiness checks, graceful shutdown, rollback definido.
 4. **Calidad**: lint y tests en verde, cobertura de los flujos críticos, sin `TODO`/`FIXME` bloqueantes, sin código muerto.
-5. **Dependencias**: lockfile presente y coherente, sin paquetes abandonados/typosquatting, licencias compatibles.
+5. **Dependencias**: lockfile presente y coherente, sin paquetes abandonados/typosquatting ni dependency confusion, scripts de ciclo de vida (`postinstall`) revisados (vector supply-chain), `npm ci` (no `npm install`) en CI, licencias compatibles.
 6. **Frontend** (si aplica): bundle dentro de presupuesto, sin claves privadas en cliente, estados de error/carga, accesibilidad mínima.
 7. **Observabilidad**: logging estructurado sin secretos/PII, métricas y alertas de los flujos críticos, trazas.
 8. **AI/LLM** (si aplica): sin prompt injection sin mitigar, límites de coste/rate, validación de salida del modelo.

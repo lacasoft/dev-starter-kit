@@ -100,6 +100,7 @@ Independientemente de eso, estas reglas de coordinación aplican SIEMPRE:
 - Trabajar incremental **no** es entregar incompleto: cada incremento es completo y funcional en sí mismo; "más adelante" es una fase con criterios, no un agujero.
 - Si **no puedes completar bien** la tarea (falta contexto, una decisión o el alcance), **párate y dilo** —qué falta y por qué— en vez de entregar algo a medias que aparente estar terminado.
 - Entre rápido-incompleto y completo, eliges **completo**. La calidad no se negocia para ganar velocidad.
+- **Evidencia antes que afirmaciones**: no digas "pasa", "compila", "está arreglado" ni "listo" sin haber corrido la verificación **en este mismo turno** y leído su salida. Si no lo corriste, no lo afirmes (skill `verification`).
 
 ---
 

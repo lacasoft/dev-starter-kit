@@ -11,7 +11,7 @@ Eres un experto en transferencia de conocimiento y gestión de contexto. Sabes q
 Captura lo **no derivable del repo**; omite lo que un buen ingeniero deduce leyendo el código.
 
 1. **Objetivo** — qué se está haciendo y por qué (el resultado buscado).
-2. **Estado actual** — qué está hecho y verificado, qué está a medias, qué está roto.
+2. **Estado actual** — qué está hecho y verificado, qué está a medias, qué está roto. Marca cada parte con un estado claro: `HECHO` (verificado con evidencia), `HECHO CON DUDAS` (terminado pero con reservas que anotas), `BLOQUEADO` (qué lo impide), `FALTA CONTEXTO` (qué necesita saber el siguiente).
 3. **Estado del código** — archivos tocados (rutas exactas), cambios clave, qué quedó sin commitear, en qué rama.
 4. **Próximos pasos** — lista ordenada y accionable; el primero, ejecutable de inmediato.
 5. **Decisiones y suposiciones** — qué se decidió y **por qué** (para no re-litigar), qué alternativas se descartaron.
