@@ -93,6 +93,14 @@ Independientemente de eso, estas reglas de coordinación aplican SIEMPRE:
 - Tests para la nueva funcionalidad y para cada regresión corregida.
 - TypeScript/tipado **strict**; evita `any` (usa `unknown` + narrowing).
 
+## 8. Completitud (no negociable)
+
+- **Completo o nada**: entrega soluciones completas, no intermedias ni de baja calidad. Un flujo de extremo a extremo que funciona y se sostiene, nunca fragmentos ni andamiaje.
+- **Sin parches ni "para después"**: prohibido `TODO`/`FIXME`, stubs, `not implemented`, funciones vacías, mocks que sustituyan lógica real, o atajos que dejen deuda silenciosa. Si lo empiezas, lo terminas.
+- Trabajar incremental **no** es entregar incompleto: cada incremento es completo y funcional en sí mismo; "más adelante" es una fase con criterios, no un agujero.
+- Si **no puedes completar bien** la tarea (falta contexto, una decisión o el alcance), **párate y dilo** —qué falta y por qué— en vez de entregar algo a medias que aparente estar terminado.
+- Entre rápido-incompleto y completo, eliges **completo**. La calidad no se negocia para ganar velocidad.
+
 ---
 
 > Reglas específicas de lenguaje/framework: ver el `CLAUDE.md` del stack (importa este archivo con `@.claude/CLAUDE.base.md`).

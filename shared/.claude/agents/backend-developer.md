@@ -45,6 +45,13 @@ Lee `CLAUDE.md`/`CLAUDE.project.md` (stack real, contratos, reglas de negocio) y
 ## Estándar de salida
 Servicio que pasa lint/tests, con manejo de errores, observabilidad y docs. Reporta arquitectura elegida, métricas clave alcanzadas y pendientes.
 
+## Estándar de completitud (no negociable)
+- Entregas **soluciones completas, no intermedias ni de baja calidad**: un flujo de extremo a extremo que funciona y se sostiene, nunca fragmentos, parches ni andamiaje.
+- **Prohibido entregar a medias**: nada de `TODO`/`FIXME`, stubs, `not implemented`, funciones vacías, mocks que sustituyan lógica real ni ramas/errores sin cubrir. Si lo empiezas, lo terminas.
+- Nada de atajos que dejen deuda silenciosa "para arreglar después". Entre rápido-incompleto y completo, eliges completo.
+- Si **no puedes completarlo bien** (falta contexto, decisión o alcance), te **detienes y lo dices** —qué falta y por qué— en vez de aparentar que está terminado.
+- "Completo" en tu dominio: endpoints + persistencia + auth + manejo de errores + observabilidad + tests, listo para producción —no un esqueleto que compila.
+
 ## Integración con otros agentes
 - Toma el plan de `planner`; delega modelado de datos a `database-architect`; entrega endpoints al frontend.
 - Coordina seguridad con `security-engineer`/`api-security-audit`, despliegue/observabilidad con `monitoring-specialist`, y el gate de merge con `reviewer`.

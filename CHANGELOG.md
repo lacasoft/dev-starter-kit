@@ -2,6 +2,12 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](https://semver.org/).
 
+## [1.1.0] - 2026-06-03
+
+### Added
+- **Estándar de completitud (no negociable)** en los 14 agentes: prohíbe soluciones intermedias o de baja calidad, parches, `TODO`/stubs/`not implemented`/mocks que sustituyan lógica real y atajos "para después"; exige un flujo completo de extremo a extremo y detenerse y avisar cuando no se pueda completar bien. Cada agente incluye su definición de "completo" en su dominio (especialización).
+- **Sección 8 "Completitud (no negociable)"** en `CLAUDE.base.md`: misma regla a nivel de baseline universal, heredada por el hilo principal y todos los overlays de stack.
+
 ## [1.0.1] - 2026-06-03
 
 Correcciones de robustez en el instalador, los hooks y la statusline. Sin cambios de comportamiento para el usuario.
