@@ -103,7 +103,7 @@ function detectStack() {
   const pkg = readJSON(path.join(CWD, "package.json")) || {};
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
   if (fs.existsSync(path.join(CWD, "pubspec.yaml"))) return "mobile/flutter";
-  if (deps["react-native"] || deps["expo"] || fs.existsSync(path.join(CWD, "app.json")) && deps["react-native"]) return "mobile/react-native";
+  if (deps["react-native"] || deps["expo"]) return "mobile/react-native";
   if (fs.existsSync(path.join(CWD, "angular.json")) || deps["@angular/core"]) return "frontend/angular";
   if (fs.existsSync(path.join(CWD, "nest-cli.json")) || deps["@nestjs/core"]) return "backend/nestjs";
   if (fs.existsSync(path.join(CWD, "foundry.toml"))) return "blockchain/solidity";
@@ -182,38 +182,45 @@ async function scaffoldProject() {
   const dest = path.join(CWD, "CLAUDE.project.md");
   if (fs.existsSync(dest)) {
     console.log("  ✓ CLAUDE.project.md ya existe (se conserva).");
-    return;
+    return true;
   }
   const tpl = path.join(KIT, "shared", "templates", "PROJECT.template.md");
-  if (!fs.existsSync(tpl)) return;
+  if (!fs.existsSync(tpl)) return false;
   if (await confirm("¿Crear plantilla de definición del proyecto (CLAUDE.project.md)?", true)) {
     let content = fs.readFileSync(tpl, "utf8");
     const name = (readJSON(path.join(CWD, "package.json")) || {}).name || path.basename(CWD);
     content = content.replace(/\{\{NOMBRE_DEL_PROYECTO\}\}/g, name);
-    if (!FLAGS.dryRun) fs.writeFileSync(dest, content);
-    console.log("  ➕ ./CLAUDE.project.md (rellénalo con el contexto real del proyecto)");
+    if (FLAGS.dryRun) {
+      console.log("  (dry-run) ➕ ./CLAUDE.project.md");
+    } else {
+      fs.writeFileSync(dest, content);
+      console.log("  ➕ ./CLAUDE.project.md (rellénalo con el contexto real del proyecto)");
+    }
+    return true;
   }
+  return false;
 }
 
-function composeClaudeMd(stackId) {
+function composeClaudeMd(stackId, hasProject) {
   const [cat, st] = stackId.split("/");
   const common = readMaybe(path.join(KIT, "stacks", cat, "_common", ".claude", "CLAUDE.md"));
   const specific = readMaybe(path.join(KIT, "stacks", cat, st, ".claude", "CLAUDE.md"));
   const imports = [];
-  if (fs.existsSync(path.join(CWD, "CLAUDE.project.md"))) imports.push("@CLAUDE.project.md");
+  if (hasProject) imports.push("@CLAUDE.project.md");
   imports.push("@.claude/CLAUDE.base.md");
   const overlay = [...imports, common, specific].filter(Boolean).join("\n\n");
   const block = `${MB}\n${overlay}\n${ME}\n`;
   const root = path.join(CWD, "CLAUDE.md");
+  const dry = FLAGS.dryRun ? "(dry-run) " : "";
   if (!fs.existsSync(root)) {
     if (!FLAGS.dryRun) fs.writeFileSync(root, block);
-    console.log("  ➕ ./CLAUDE.md (base + común + stack)");
+    console.log(`  ${dry}➕ ./CLAUDE.md (base + común + stack)`);
   } else {
     let cur = fs.readFileSync(root, "utf8");
     const re = new RegExp(`${esc(MB)}[\\s\\S]*?${esc(ME)}\\n?`);
     cur = re.test(cur) ? cur.replace(re, block) : cur.trimEnd() + "\n\n" + block;
     if (!FLAGS.dryRun) fs.writeFileSync(root, cur);
-    console.log("  🔁 ./CLAUDE.md (bloque dev-starter-kit actualizado)");
+    console.log(`  ${dry}🔁 ./CLAUDE.md (bloque dev-starter-kit actualizado)`);
   }
 }
 
@@ -293,8 +300,8 @@ async function main() {
 
   // 3) Definición del proyecto + CLAUDE.md raíz (añade/actualiza nuestro bloque; respeta el de claude-flow y anexa)
   console.log("\n📝 Definición del proyecto y CLAUDE.md...");
-  await scaffoldProject();
-  composeClaudeMd(stackId);
+  const hasProject = await scaffoldProject();
+  composeClaudeMd(stackId, hasProject);
   ensureGitignore();
 
   // 4) externos (claude-code-templates: agentes + skills)

@@ -10,7 +10,7 @@ components.json       # manifiesto de externos curados (claude-code-templates, p
 scripts/validate.cjs  # validación zero-dep (CI + local)
 shared/.claude/       # capa base común a TODOS los proyectos
   ├── CLAUDE.base.md  # baseline universal
-  ├── settings.json   # hooks + permisos + statusLine + claudeFlow
+  ├── settings.json   # hooks + permisos + statusLine
   ├── agents/         # agentes expertos (.md con frontmatter)
   ├── skills/<name>/SKILL.md
   ├── helpers/        # hook-handler, memory, router, etc. (zero-dep)

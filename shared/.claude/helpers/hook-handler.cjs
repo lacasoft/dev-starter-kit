@@ -61,7 +61,7 @@ switch (action) {
   case "pre-bash": {
     const cmd = toolInput.command || "";
     const esRmRf = /\brm\s+-[a-z]*r[a-z]*f|\brm\s+-[a-z]*f[a-z]*r/i.test(cmd);
-    const sobreRaiz = /\s(\/|~|\$HOME)(\s|\/|$)/.test(cmd);
+    const sobreRaiz = /\s(\/|~|\$HOME)(\s|\/|\*|$)/.test(cmd);
     if (esRmRf && sobreRaiz) {
       console.error("❌ Bloqueado: rm -rf sobre / o $HOME. Revisa el comando.");
       process.exit(2);

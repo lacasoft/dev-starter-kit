@@ -79,13 +79,12 @@
   },
   "permissions": {
     "allow": [
-      "Bash(npx @claude-flow*)",
       "Bash(npx claude-flow*)",
       "Bash(node .claude/*)",
       "Bash(npm run lint*)",
       "Bash(npm run format*)",
       "Bash(npm test*)",
-      "mcp__claude-flow__:*"
+      "mcp__claude-flow__*"
     ],
     "deny": [
       "Read(./.env)",
@@ -94,19 +93,5 @@
   },
   "env": {
     "CLAUDE_FLOW_HOOKS_ENABLED": "true"
-  },
-  "claudeFlow": {
-    "enabled": true,
-    "note": "Solo surte efecto si claude-flow está instalado (npx claude-flow init). Si no, los hooks de arriba siguen funcionando solos vía .claude/helpers.",
-    "swarm": {
-      "topology": "hierarchical-mesh",
-      "maxAgents": 12
-    },
-    "memory": {
-      "backend": "hybrid"
-    },
-    "learning": {
-      "enabled": true
-    }
   }
 }
