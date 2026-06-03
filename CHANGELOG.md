@@ -2,6 +2,19 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](https://semver.org/).
 
+## [1.0.1] - 2026-06-03
+
+Correcciones de robustez en el instalador, los hooks y la statusline. Sin cambios de comportamiento para el usuario.
+
+### Fixed
+- **Guard `rm -rf`**: ahora también bloquea `rm -rf /*` (antes solo `/`, `~`, `$HOME` seguidos de espacio/`/`/fin).
+- **Detección de stack**: eliminada cláusula muerta en React Native (`app.json && deps["react-native"]`, redundante por precedencia). La detección se mantiene por `react-native`/`expo`.
+- **Statusline**: el contador de memoria (🧠) se resuelve relativo al helper (`.claude/memory/`) en vez de al `cwd`, así no marca 0 al trabajar desde un subdirectorio.
+- **`--dry-run`**: `CLAUDE.project.md` y `CLAUDE.md` se rotulan con prefijo `(dry-run)` y el preview refleja el import real `@CLAUDE.project.md` (antes simulaba escrituras como reales y omitía el import).
+
+### Changed
+- **`settings.json`**: eliminada la clave no-estándar `claudeFlow` (no la lee ningún consumidor; la config viva de claude-flow está en `components.json`) y el permiso redundante `Bash(npx @claude-flow*)`. Corregido el wildcard MCP a `mcp__claude-flow__*`. La topología del enjambre sigue documentada en `CLAUDE.base.md` y `env.CLAUDE_FLOW_HOOKS_ENABLED` permanece.
+
 ## [1.0.0] - 2026-06-02
 
 Primera versión estable del Dev Starter Kit (arquitectura de archivos reales + instalador).

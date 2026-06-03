@@ -12,7 +12,7 @@ Configuración `.claude` unificada para backend, frontend, mobile y blockchain. 
 ├── components.json             # manifiesto curado de componentes externos (revisados 1 a 1)
 ├── shared/.claude/             # CAPA BASE (común a todos los proyectos)
 │   ├── CLAUDE.base.md          # baseline universal (comportamiento, swarm, seguridad, calidad)
-│   ├── settings.json           # hooks + permisos + statusLine + config claude-flow
+│   ├── settings.json           # hooks + permisos + statusLine
 │   ├── agents/                 # core: planner, coder, reviewer, tester, researcher (reglas reales)
 │   ├── skills/                 # swarm-orchestration, tdd, diagnose, grill-me, handoff
 │   ├── commands/               # /swarm, /monitoring:status

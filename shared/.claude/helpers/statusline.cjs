@@ -21,10 +21,11 @@ try {
     .trim();
 } catch (_) {}
 
-// Nº de entradas de memoria del proyecto (si existe).
+// Nº de entradas de memoria del proyecto (si existe). Relativo a este helper
+// (.claude/helpers/ → ../memory), no al cwd, para no fallar desde subdirectorios.
 let mem = 0;
 try {
-  const memFile = path.join(dir, ".claude", "memory", "memory.jsonl");
+  const memFile = path.resolve(__dirname, "..", "memory", "memory.jsonl");
   if (fs.existsSync(memFile)) mem = fs.readFileSync(memFile, "utf8").split("\n").filter(Boolean).length;
 } catch (_) {}
 
