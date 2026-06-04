@@ -15,6 +15,7 @@ Integración de 5 fuentes externas (MIT / Apache-2.0) revisadas a fondo y destil
 ### Changed
 - **Scanner de secretos** (`helpers/hook-handler.cjs`): de 3 a ~30 patrones por proveedor (AWS/GCP/GitHub/Slack/Stripe/OpenAI/Anthropic/DB URLs/claves privadas…) **con allowlist** de placeholders y claves de test, reduciendo falsos positivos.
 - **§8 Completitud** de `CLAUDE.base.md`: añade el gate "evidencia antes que afirmaciones" (no digas "pasa/compila/listo" sin correr la verificación en el turno).
+- **§6 Seguridad** de `CLAUDE.base.md` + `agents/coder.md`: regla **"nada hardcodeado"** — toda config/URL/host/puerto/clave/flag que cambie entre entornos va a variables de entorno (`.env` gitignorado + `.env.example` versionado, solo nombres), leída por una capa de config validada al boot (fail-fast), no incrustada en el código.
 - **`skills/tdd`**: Ley de hierro + tabla de racionalizaciones. **`skills/diagnose`**: circuit-breaker de 3 hipótesis (≥3 arreglos fallidos = problema de arquitectura) + instrumentación por capas. **`skills/swarm-orchestration`**: patrón subagent-driven secuencial (doble review + estados). **`skills/handoff`**: vocabulario de estados.
 - **Regla CSO** en `CONTRIBUTING.md` (la `description` dice solo *cuándo*, no el workflow) aplicada a las descriptions de `swarm-orchestration`, `release` y `migration`.
 
