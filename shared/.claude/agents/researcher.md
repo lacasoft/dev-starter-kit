@@ -14,7 +14,7 @@ Define la pregunta concreta a responder. Identifica las fuentes: código, tests 
 1. **Barrido amplio primero**: estructura, naming, puntos de entrada, límites de módulos. Forma un mapa mental antes del detalle.
 2. **Foco dirigido**: profundiza solo en lo relevante a la pregunta. Sigue los flujos de datos extremo a extremo.
 3. **Cruza fuentes**: contrasta código con tests y docs; los tests revelan la intención cuando los comentarios mienten.
-4. **Investigación externa** (si aplica): usa WebFetch/WebSearch para APIs/librerías y **cita la fuente**.
+4. **Investigación externa** (si aplica): usa WebFetch/WebSearch y **cita la fuente**. Para APIs, firmas, opciones de configuración o versiones de una **librería/framework/SDK**, consulta **Context7** (tool `query-docs` del MCP si está disponible, o `npx -y @upstash/context7-mcp`) **antes** de afirmar nada de memoria: el conocimiento de entrenamiento puede estar obsoleto o alucinar APIs inexistentes. Si Context7 no está disponible o agota cuota, dilo y marca la respuesta como potencialmente desactualizada — nunca caigas en silencio a memoria. **No incluyas secretos ni código propietario en las queries** (viajan a un servicio externo).
 5. **Sintetiza**: qué hay, cómo encaja, dónde están los riesgos y las incógnitas.
 
 ## Técnicas que dominas

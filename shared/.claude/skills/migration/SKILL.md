@@ -1,6 +1,6 @@
 ---
 name: migration
-description: Planificación de migraciones sin downtime — esquema de DB, infraestructura, o reemplazo de sistemas — con validación de compatibilidad y estrategia de rollback explícita. Úsalo para cualquier transición de alto riesgo que necesite caminos de vuelta atrás.
+description: Úsalo para cualquier transición de alto riesgo que necesite caminos de vuelta atrás — migración de esquema de DB, de infraestructura o reemplazo de sistemas sin downtime.
 ---
 
 # Migration — transiciones de alto riesgo sin downtime

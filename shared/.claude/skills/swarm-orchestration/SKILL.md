@@ -1,6 +1,6 @@
 ---
 name: swarm-orchestration
-description: Orquestación experta de enjambres multi-agente para ejecución paralela, con topologías, coordinación y verificación. Úsalo al escalar más allá de un solo agente, en features grandes, migraciones, auditorías o trabajo con muchas partes independientes. Modelo híbrido — usa claude-flow si está instalado, o coordinación nativa si no.
+description: Úsalo al escalar más allá de un solo agente — features grandes, migraciones, auditorías o trabajo con muchas partes independientes que un solo contexto no abarca, o cuando necesitas perspectivas independientes que verifiquen lo producido. Orquestación multi-agente híbrida (claude-flow o coordinación nativa).
 ---
 
 # Swarm Orchestration (nivel experto, modelo híbrido)
@@ -29,6 +29,18 @@ Usa el `Task`/`Agent` tool de Claude Code. El patrón de enjambre se mantiene:
 3. **Memoria compartida**: el estado entre agentes pasa por `.claude/memory/`.
 4. **Verificación adversarial**: `reviewer` valida de forma independiente; lo que un verificador rechaza, no entra.
 5. **Síntesis**: integras resultados.
+
+## Modo secuencial — subagent-driven (un subagente fresco por tarea)
+Para **ejecutar un plan** en la misma sesión cuando quieres calidad por tarea (alternativa al fan-out paralelo; útil aunque las tareas no sean del todo independientes):
+1. Extrae **todas** las tareas del plan con su texto completo y crea el `TodoWrite`. El subagente **no lee el plan**: tú le pasas el texto y el contexto exactos (preservas tu contexto y el suyo, y evitas que se desvíe).
+2. Por cada tarea, **en serie** (no en paralelo: dos implementadores a la vez chocan):
+   - **Implementador** (subagente fresco): implementa con TDD, testea, commitea y se auto-revisa. Puede **preguntar antes** de empezar — respóndele antes de que siga.
+   - **Revisión de spec primero**: confirma que el código cumple la tarea, ni de más ni de menos. Huecos → el implementador corrige → se re-revisa.
+   - **Revisión de calidad después** (orden fijo, solo con la spec en ✅): issues → fix → re-review hasta aprobar.
+   - Marca la tarea completa y pasa a la siguiente.
+3. Al terminar todas, un revisor del **conjunto completo** antes de cerrar la rama.
+- **Modelo por rol**: tareas mecánicas (1-2 archivos, spec clara) → modelo rápido/barato; integración multi-archivo → estándar; diseño/arquitectura/review → el más capaz.
+- **Estados que reporta el implementador** (manéjalos, no los ignores): `DONE` → a revisión; `DONE_WITH_CONCERNS` → lee las dudas antes de seguir; `NEEDS_CONTEXT` → dale lo que falta y re-despacha; `BLOCKED` → cambia algo (más contexto, modelo más capaz, o trocea la tarea). Nunca re-despaches con el mismo modelo sin cambiar nada.
 
 ## Topologías (y cuándo usar cada una)
 - **Mesh** (pares iguales, decisión distribuida): exploración/búsqueda amplia, donde cada agente aporta un ángulo distinto.

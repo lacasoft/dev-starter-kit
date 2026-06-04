@@ -1,6 +1,6 @@
 ---
 name: release
-description: Gestión de releases — versionado semántico, generación de changelog desde Conventional Commits, tags, notas de release y promoción por entornos. Úsalo para preparar una versión, automatizar el changelog o estandarizar el flujo de publicación.
+description: Úsalo para preparar y publicar una versión, generar el changelog, estandarizar el flujo de release o promover por entornos.
 ---
 
 # Release — versionar y publicar con disciplina
