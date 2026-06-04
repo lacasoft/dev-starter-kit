@@ -4,12 +4,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](htt
 
 ## [1.2.0] - 2026-06-04
 
-Integración de fuentes externas (MIT) revisadas a fondo y destiladas a la capa base en español. Ver `components.json` → `distilled` para la atribución completa.
+Integración de 5 fuentes externas (MIT / Apache-2.0) revisadas a fondo y destiladas a la capa base en español. Ver `components.json` → `distilled` para la atribución completa.
 
 ### Added
 - **3 skills nuevas**: `verification` (gate de evidencia antes de declarar hecho), `git-worktrees` (workspace aislado sin pelear con el harness), `code-review-response` (responder a una revisión con rigor técnico, sin acuerdo performativo). Destiladas de [Superpowers](https://github.com/obra/superpowers) (MIT).
 - **CWE Top 25 + OWASP 2025** en `agents/security-engineer.md` (con las categorías nuevas A03 Supply Chain y A10 Mishandling of Exceptional Conditions) y **CI/CD security de GitHub Actions** en `skills/ship-gate`. Destilado de [Cyber Neo](https://github.com/Hainrixz/cyber-neo) (MIT).
 - **Context7** referenciado como plugin/MCP opcional (shared) en `components.json` + instrucción anti-alucinación de APIs en `agents/researcher.md`. De [Context7](https://github.com/upstash/context7) (MIT).
+- **Diseño** — `agents/ui-designer.md` enriquecido: registro **marca vs producto**, catálogo concreto de **AI-slop**, eje de estrategia de color, técnicas de interacción modernas (Popover API/CSS Anchor/`inert`), "cuándo NO animar", brief→design system oficial y pre-flight visual. Destilado de [Impeccable](https://github.com/pbakaus/impeccable) (Apache-2.0, deriva de `anthropics/frontend-design`) y [Taste Skill](https://github.com/leonxlnx/taste-skill) (MIT). `impeccable` también referenciado como plugin opcional (frontend). **`emilkowalski/skill` NO integrado** (sin licencia → no destilable); ver `components.json` → `discarded`.
 
 ### Changed
 - **Scanner de secretos** (`helpers/hook-handler.cjs`): de 3 a ~30 patrones por proveedor (AWS/GCP/GitHub/Slack/Stripe/OpenAI/Anthropic/DB URLs/claves privadas…) **con allowlist** de placeholders y claves de test, reduciendo falsos positivos.

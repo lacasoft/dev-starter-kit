@@ -50,7 +50,8 @@
         { "id": "development/senior-frontend", "rec": "opcional", "why": "solapa con frontend-design" }
       ],
       "pluginsOptional": [
-        { "id": "ui-ux-pro-max@ui-ux-pro-max-skill", "marketplace": "nextlevelbuilder/ui-ux-pro-max-skill", "why": "inteligencia de diseño multi-stack" }
+        { "id": "ui-ux-pro-max@ui-ux-pro-max-skill", "marketplace": "nextlevelbuilder/ui-ux-pro-max-skill", "why": "inteligencia de diseño multi-stack" },
+        { "id": "impeccable@impeccable", "marketplace": "pbakaus/impeccable", "rec": "opcional", "why": "vocabulario de comandos de diseño + detector determinista de anti-patrones AI-slop (CLI/extensión, sin LLM ni API key). Lo destilable ya está en ui-designer; el plugin aporta el detector ejecutable." }
       ]
     },
     "mobile": {
@@ -100,12 +101,25 @@
       "referencedAs": "plugin/MCP en shared.pluginsOptional (no destilado: se instala como externo)",
       "into": ["agents/researcher.md (consulta docs de librería antes de inventar APIs)"],
       "why": "Docs de librerías versionadas/actualizadas; anti-alucinación de APIs. Transversal a todos los stacks, sin API key obligatoria."
+    },
+    "pbakaus/impeccable": {
+      "license": "Apache-2.0 (©2025-2026 Paul Bakaus; deriva de anthropics/frontend-design, Apache-2.0, ©2025 Anthropic PBC)",
+      "into": ["agents/ui-designer.md (registro marca-vs-producto, catálogo concreto de AI-slop, eje de estrategia de color, técnicas de interacción modernas: Popover/CSS Anchor/inert)"],
+      "referencedAs": "plugin opcional en stacks.frontend.pluginsOptional (detector determinista de anti-patrones, sin API key)",
+      "why": "Capa de gusto y actualidad (anti-slop datado, registro marca/producto) que complementa a nuestro ui-designer atemporal. Apache exige conservar atribución/NOTICE y notar cambios; reescrito en español, no se copian sus scripts."
+    },
+    "Leonxlnx/taste-skill": {
+      "license": "MIT",
+      "into": ["agents/ui-designer.md (catálogo concreto de AI tells, pre-flight visual de cierre, disciplina hero/layout, brief→design system oficial)"],
+      "why": "Convierte nuestro 'evita AI slop' abstracto en reglas falsables. Solo se destila taste-skill/SKILL.md; las otras 12 skills se descartan (ver discarded)."
     }
   },
 
   "discarded": {
     "obra/superpowers (plugin completo)": "DESTILADO (ver distilled); NO instalar el plugin entero: su hook SessionStart inyecta un bloque grande en cada sesión y su registro ('your human partner', tono '<EXTREMELY_IMPORTANT>') choca con nuestro estilo sobrio en español; sus skills están acopladas por cross-refs internas. Destilamos los patrones, no los enlaces.",
     "Hainrixz/cyber-neo (skill completa)": "DESTILADO (ver distilled); NO instalar la skill entera: solapa con ship-gate, escribe el reporte en ~/Desktop y trae branding de comunidad. Aprovechamos su knowledge base (CWE/OWASP/secretos/CI-CD), no su orquestación ni references largos por lenguaje.",
+    "Leonxlnx/taste-skill (imagegen/stitch/variantes)": "DESTILADA solo taste-skill/SKILL.md (ver distilled); descartadas imagegen-frontend-web/mobile, brandkit, image-to-code y stitch-skill (requieren ChatGPT Images/Google Stitch externos; generan imágenes, no código), taste-skill-v1 y gpt-tasteskill (variantes legacy/atadas a otro agente), y research/laziness (trata de truncación de output, no de diseño; mezcla estudios con afirmaciones sin cita).",
+    "emilkowalski/skill (emil-design-eng)": "NO integrado: el repo NO tiene licencia (todos los derechos reservados) → no se puede destilar/copiar legalmente, pese a su alta calidad en craft de animación. Solo referencia por link: https://emilkowal.ski/skill. Nuestro ui-designer mejora 'motion' con principios de conocimiento general (cuándo NO animar), redactados con palabras propias, sin copiar sus curvas ni código.",
     "thedotmack/claude-mem": "Duplica nuestro .claude/memory/ y registra hooks propios (SessionStart/End). No conviven. Mantenemos memoria versionable por-proyecto.",
     "development-tools/mcp-expert": "Sus reglas operan sobre el repo del CLI de davila7 (cli-tool/components/mcps), no sobre proyectos reales.",
     "git/git-flow-manager": "Solo si el equipo usa Git Flow (no trunk-based). Dejar a criterio por proyecto.",
