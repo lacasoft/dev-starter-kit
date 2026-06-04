@@ -2,6 +2,11 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](https://semver.org/).
 
+## [1.3.0] - 2026-06-04
+
+### Added
+- **Flag `--update` (alias `--force`)** en el instalador: actualiza un proyecto ya instalado **sobrescribiendo** la capa base (agentes, skills, helpers, comandos, `CLAUDE.base.md`) con la última versión del kit. Hace backup antes, **conserva** la memoria (`.claude/memory/`) y `CLAUDE.project.md`, y **respeta** el `settings.json` de claude-flow si está presente. Sin el flag, el instalador sigue siendo aditivo (skip-existing) como hasta ahora.
+
 ## [1.2.0] - 2026-06-04
 
 Integración de 5 fuentes externas (MIT / Apache-2.0) revisadas a fondo y destiladas a la capa base en español. Ver `components.json` → `distilled` para la atribución completa.
