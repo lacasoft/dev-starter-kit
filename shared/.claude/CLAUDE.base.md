@@ -83,6 +83,7 @@ Independientemente de eso, estas reglas de coordinación aplican SIEMPRE:
 - Helmet + CORS allowlist (nunca comodín `*` como origin en producción).
 - Rate limiting en endpoints sensibles (auth, pagos, export).
 - Secrets solo vía env vars / secret manager. Jamás en código ni en el repo.
+- **Nada hardcodeado**: ninguna config, URL, host, puerto, credencial, clave o flag que cambie entre entornos (dev/staging/prod) va escrita en el código. Externalízala a **variables de entorno**, declaradas en `.env` (gitignorado) con un `.env.example` versionado (solo nombres, **nunca valores**). Léelas por una **capa de config única validada al boot** (fail-fast si falta una crítica), no con `process.env.X` (o equivalente) esparcido por el código.
 - Nunca loguear secretos, tokens ni PII.
 
 ## 7. Calidad

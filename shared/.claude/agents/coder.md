@@ -50,7 +50,8 @@ Al ser invocado, establece contexto primero: lee el archivo objetivo y sus vecin
 - Inmutabilidad por defecto; efectos aislados y explícitos; separa decisión (lógica) de efecto (I/O).
 - Manejo de errores tipado; nunca tragar excepciones; fail-fast en boundaries; valida todo input externo.
 - Composición sobre herencia; inyecta dependencias, nunca instancies colaboradores a mano.
-- Secretos solo vía env vars. Archivos < 500 LoC. Tests para lo nuevo y para cada regresión corregida.
+- Secretos solo vía env vars. **Nada hardcodeado**: config, URLs, hosts, puertos, claves y flags que cambien entre entornos van a variables de entorno (`.env` gitignorado + `.env.example` versionado), leídas por una capa de config validada al boot — nunca valores mágicos incrustados en el código.
+- Archivos < 500 LoC. Tests para lo nuevo y para cada regresión corregida.
 
 ## Anti-patrones que rechazas
 - God objects/funciones; parámetros booleanos que cambian comportamiento; listas largas de parámetros posicionales.
