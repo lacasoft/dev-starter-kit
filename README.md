@@ -46,7 +46,7 @@ node /ruta/al/kit/install.js
 
 Flags: `--stack backend/nestjs` (fuerza stack) · `--yes` (no interactivo, conservador) ·
 `--all` (acepta TODO: flow + externos + deps; combínalo con `--yes` para desatendido total) ·
-`--no-flow` · `--no-external` · `--dry-run` (simula) · `--help`.
+`--no-flow` · `--no-external` · `--update`/`--force` (sobrescribe la capa base con la última versión) · `--dry-run` (simula) · `--help`.
 
 El instalador:
 1. **Detecta el stack** (pubspec→flutter, react-native, angular.json, nest-cli, foundry, composer, fastapi, react).
@@ -127,8 +127,14 @@ Repo **privado** distribuido por `npx github:` → la rama **`master` debe estar
 - **CI** (`.github/workflows/ci.yml`): valida + smoke-test del instalador en los 8 stacks (dry-run) en cada PR.
 - **Cómo añadir** agentes, skills, stacks o externos: ver [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Versionado**: SemVer en `package.json` + `CHANGELOG.md`. Fija versiones por tag (`#v1.2.0`).
-- **Actualizar un proyecto** ya instalado: vuelve a ejecutar el instalador — hace backup y el bloque
-  gestionado de `CLAUDE.md` es idempotente; tus archivos locales y `CLAUDE.project.md` se conservan.
+- **Actualizar un proyecto** ya instalado: por defecto el instalador es **aditivo** (añade lo nuevo,
+  no pisa lo existente). Para **traer la última versión de agentes/skills/helpers**, ejecútalo con
+  **`--update`** (alias `--force`): sobrescribe la capa base haciendo backup antes, y **conserva tu
+  memoria (`.claude/memory/`) y tu `CLAUDE.project.md`** (y respeta el `settings.json` de claude-flow
+  si está). El bloque gestionado de `CLAUDE.md` es idempotente en cualquier caso.
+  ```bash
+  npx github:lacasoft/dev-starter-kit --update --yes
+  ```
 
 ### Publicar el repo (una vez)
 

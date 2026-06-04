@@ -17,6 +17,7 @@
  *   --all                acepta TODO (claude-flow + externos + deps). Combina con --yes para desatendido total
  *   --no-flow            no ejecuta claude-flow init
  *   --no-external        no instala componentes externos (claude-code-templates / npm)
+ *   --update, --force    sobrescribe la capa base con la última versión (conserva memoria y CLAUDE.project.md)
  *   --dry-run            simula: imprime qué haría, no escribe ni ejecuta
  *   --help, -h           muestra esta ayuda
  */
@@ -33,6 +34,7 @@ const FLAGS = {
   all: argv.includes("--all"),
   noFlow: argv.includes("--no-flow"),
   noExternal: argv.includes("--no-external"),
+  update: argv.includes("--update") || argv.includes("--force"),
   dryRun: argv.includes("--dry-run"),
   help: argv.includes("--help") || argv.includes("-h"),
   stack:
@@ -54,6 +56,9 @@ Uso:  node install.js [opciones]
   --all                acepta TODO (claude-flow + externos + deps). Usa "--yes --all" para desatendido total
   --no-flow            no ejecuta claude-flow init
   --no-external        no instala componentes externos
+  --update, --force    actualiza la capa base: SOBRESCRIBE agentes/skills/helpers/comandos
+                       del kit con la última versión (conserva memoria y CLAUDE.project.md;
+                       respeta settings.json de claude-flow si está). Hace backup antes.
   --dry-run            simula sin escribir ni ejecutar
   --help, -h           esta ayuda
 
@@ -121,7 +126,9 @@ const STACKS = {
 };
 
 // ---------- copia de archivos ----------
-function copyNew(src, dest, skip, base) {
+// overwrite=false (default): solo copia lo que no existe (skip-existing).
+// overwrite=true (--update): sobrescribe lo existente con la versión del kit.
+function copyNew(src, dest, skip, base, overwrite) {
   base = base || src;
   if (!fs.existsSync(src)) return;
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
@@ -134,13 +141,16 @@ function copyNew(src, dest, skip, base) {
     }
     if (entry.isDirectory()) {
       if (!FLAGS.dryRun) fs.mkdirSync(d, { recursive: true });
-      copyNew(s, d, skip, base);
-    } else if (!fs.existsSync(d)) {
+      copyNew(s, d, skip, base, overwrite);
+    } else {
+      const existed = fs.existsSync(d);
+      if (existed && !overwrite) continue; // skip-existing
+      const icon = existed ? "🔁" : "➕";
       if (FLAGS.dryRun) {
-        console.log(`  (dry-run) ➕ ${path.relative(CWD, d)}`);
+        console.log(`  (dry-run) ${icon} ${path.relative(CWD, d)}`);
       } else {
         fs.copyFileSync(s, d);
-        console.log(`  ➕ ${path.relative(CWD, d)}`);
+        console.log(`  ${icon} ${path.relative(CWD, d)}`);
       }
     }
   }
@@ -288,6 +298,9 @@ async function main() {
   // 2) capa base (encima de claude-flow si está). En modo flow se omiten nuestros agentes core
   //    (los cubre claude-flow agents/core/*) para no duplicar nombres de agente.
   console.log("\n📄 Aplicando capa base (shared/.claude)...");
+  if (FLAGS.update) {
+    console.log("  🔄 Modo actualización: sobrescribo los archivos del kit con la última versión (memoria y CLAUDE.project.md se conservan).");
+  }
   if (!FLAGS.dryRun) fs.mkdirSync(claudeDir, { recursive: true });
   // Solo se omiten los 5 agentes core cuyo NOMBRE colisiona con claude-flow (agents/core/*).
   // El resto de agentes top-level (security-engineer, api-security-audit, ...) se conservan;
@@ -295,8 +308,10 @@ async function main() {
   const FLOW_CORE_COLISION = /^agents\/(coder|planner|reviewer|tester|researcher)\.md$/;
   copyNew(path.join(KIT, "shared", ".claude"), claudeDir, (rel) => {
     if (flowInstalled && FLOW_CORE_COLISION.test(rel)) return true;
+    // En --update no pisamos settings.json si claude-flow es dueño del runtime.
+    if (FLAGS.update && flowInstalled && rel === "settings.json") return true;
     return false;
-  });
+  }, undefined, FLAGS.update);
 
   // 3) Definición del proyecto + CLAUDE.md raíz (añade/actualiza nuestro bloque; respeta el de claude-flow y anexa)
   console.log("\n📝 Definición del proyecto y CLAUDE.md...");
