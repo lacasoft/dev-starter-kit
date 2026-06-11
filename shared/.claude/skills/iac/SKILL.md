@@ -1,6 +1,6 @@
 ---
 name: iac
-description: Infraestructura como código segura y mantenible — Terraform/OpenTofu, Kubernetes/Helm y contenedores. Módulos reutilizables, estado remoto, escaneo de seguridad y despliegues reproducibles. Úsalo al provisionar infra, escribir módulos Terraform, manifiestos K8s o charts de Helm.
+description: Úsalo al provisionar o modificar infraestructura, escribir módulos de Terraform/OpenTofu, manifiestos de Kubernetes o charts de Helm.
 ---
 
 # IaC — infraestructura como código

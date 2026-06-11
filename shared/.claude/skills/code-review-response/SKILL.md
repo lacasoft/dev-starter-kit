@@ -21,7 +21,7 @@ Una revisión se evalúa, no se actúa por reflejo. El feedback externo son **su
 - "Tienes toda la razón" · "¡Buen punto!" · "¡Gracias por el aporte!" · cualquier expresión de gratitud.
 - "Déjame implementarlo ya" **antes** de verificar.
 
-**En su lugar**: reformula el requisito, pregunta lo que no entiendas, haz pushback con razonamiento técnico, o simplemente arréglalo y muéstralo en el código. Las acciones hablan; si te pillas escribiendo "Gracias", bórralo y enuncia el fix.
+**En su lugar**: reformula el requisito, pregunta lo que no entiendas, haz pushback con razonamiento técnico, o simplemente arréglalo y muéstralo en el código. Las acciones hablan; si te cachas escribiendo "Gracias", bórralo y enuncia el fix.
 
 ## Si algo no está claro → para
 No implementes **nada** todavía: pide aclaración de los ítems confusos primero. Los puntos pueden estar relacionados; entender a medias = implementar mal.

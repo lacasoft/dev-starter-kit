@@ -1,6 +1,6 @@
 ---
 name: performance-profiling
-description: Profiling sistemático de rendimiento (CPU, memoria, I/O) en Node.js, Python, Go y frontend. Flamegraphs, fugas de memoria, análisis de bundle, optimización de queries y load testing. Mide SIEMPRE antes y después. Úsalo ante un endpoint lento, un leak en producción o para fijar un presupuesto de rendimiento.
+description: Úsalo ante un endpoint o consulta lentos, una fuga de memoria en producción, o para fijar y validar un presupuesto de rendimiento.
 ---
 
 # Performance Profiling — optimiza con evidencia

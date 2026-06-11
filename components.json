@@ -71,7 +71,7 @@
   },
 
   "byStackId": {
-    "frontend/react": { "npm": ["framer-motion"], "tools": ["react-doctor"] },
+    "frontend/react": { "npm": ["motion"], "tools": ["react-doctor"] },
     "mobile/react-native": { "npm": ["react-native-reanimated"], "tools": ["react-doctor"] }
   },
 

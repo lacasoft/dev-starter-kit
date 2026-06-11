@@ -1,6 +1,6 @@
 ---
 name: monorepo
-description: Navegar, gestionar y optimizar monorepos (Turborepo, Nx, pnpm workspaces, Lerna). Análisis de impacto cross-package, builds/tests solo de lo afectado, caché remota, grafo de dependencias y consolidación multi-repo. Úsalo al montar un monorepo, optimizar su CI o depurar dependencias entre paquetes.
+description: Úsalo al configurar un monorepo, optimizar el CI de un workspace grande, depurar dependencias entre paquetes o consolidar varios repos en uno.
 ---
 
 # Monorepo — workspaces a escala

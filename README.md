@@ -15,7 +15,7 @@ Configuración `.claude` unificada para backend, frontend, mobile y blockchain. 
 │   ├── settings.json           # hooks + permisos + statusLine
 │   ├── agents/                 # core: planner, coder, reviewer, tester, researcher (reglas reales)
 │   ├── skills/                 # swarm-orchestration, tdd, diagnose, grill-me, handoff
-│   ├── commands/               # /swarm, /monitoring:status
+│   ├── commands/               # /swarm, /kit:status
 │   ├── helpers/                # hook-handler, memory, session, router, intelligence, statusline
 │   └── templates/              # PROJECT.template.md (definición del proyecto)
 ├── stacks/                     # OVERLAYS por categoría/stack

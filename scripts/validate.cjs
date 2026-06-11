@@ -108,6 +108,17 @@ if (declIds.size === 0) errors.push("install.js: no se pudo extraer el objeto ST
 for (const id of declIds) if (!fsIds.has(id)) errors.push(`STACKS["${id}"] (install.js) sin overlay stacks/${id}/.claude/CLAUDE.md`);
 for (const id of fsIds) if (!declIds.has(id)) errors.push(`overlay stacks/${id} sin entrada en STACKS de install.js (no se detectaría)`);
 
+// --- es-MX: peninsularismos prohibidos (solo agentes, skills y overlays; ver CONTRIBUTING.md) ---
+const ESMX = /\b(coste|costes|montar|montamos|montas|ordenador|ordenadores|fichero|ficheros|vale|pillas|pillamos|pill[eé])\b/i;
+for (const f of [...agents, ...skills, ...stacks]) {
+  fs.readFileSync(f, "utf8")
+    .split(/\r?\n/)
+    .forEach((ln, i) => {
+      const m = ln.match(ESMX);
+      if (m) errors.push(`${rel(f)}:${i + 1}: peninsularismo "${m[1]}" — usa es-MX (ver CONTRIBUTING.md)`);
+    });
+}
+
 // --- reporte ---
 console.log(`\n🔎 Validación del kit`);
 console.log(`   agentes: ${agents.length} · skills: ${skills.length} · overlays: ${stacks.length} · JS: ${jsFiles.length}`);

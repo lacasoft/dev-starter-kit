@@ -1,6 +1,6 @@
 ---
 name: ci-cd
-description: Diseña pipelines de CI/CD pragmáticos a partir del stack detectado del repo — lint/test/build/deploy, caché, matrices, despliegue por entorno. Úsalo al montar CI para un proyecto nuevo, refactorizar pipelines o estandarizar el flujo de despliegue.
+description: Úsalo al configurar CI/CD en un proyecto nuevo, refactorizar pipelines existentes o estandarizar el flujo de build y despliegue entre repos.
 ---
 
 # CI/CD — pipelines pragmáticos

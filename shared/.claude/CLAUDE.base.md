@@ -20,18 +20,24 @@
 - Ante operaciones destructivas o que afecten estado compartido (DB, infra, despliegues, borrados): **pide confirmación** y explica el impacto.
 - Reporta con honestidad: si un test falla, dilo con la salida; si saltaste un paso, dilo.
 
+## Idioma
+- **Interacción, explicaciones y documentación**: **español de México**, registro técnico neutro. Evita peninsularismos (usa *costo* no "coste", *configurar/armar* no "montar", *computadora* no "ordenador", *archivo* no "fichero").
+- **Código, identificadores, mensajes de commit, logs y mensajes de error**: en **inglés** (convención de industria), salvo que `CLAUDE.project.md` indique otra cosa.
+- **Textos visibles al usuario final**: siempre vía i18n, **nunca hardcodeados** (ni en español ni en inglés).
+
 ## 2. Organización de archivos
 
 | Carpeta | Contenido |
 |---------|-----------|
 | `/src` | código fuente |
 | `/tests` | pruebas |
-| `/docs` | documentación markdown (gitignored) |
+| `/docs` | documentación markdown (de trabajo, gitignored) |
+| `/docs/adr` | Architecture Decision Records — **versionados** (excepción a `/docs`) |
 | `/config` | configuración |
 | `/scripts` | utilidades |
 | `/examples` | ejemplos |
 
-Nunca en la raíz. Siempre en `.gitignore`: `/docs`, `.claude/memory/`, `.claude-flow/`, `.swarm/`, `*.local.*`, `.env*`.
+Nunca en la raíz. En `.gitignore`: `/docs` (salvo `/docs/adr`, que SÍ se versiona), `.claude/memory/`, `.claude-flow/`, `.swarm/`, `*.local.*`, `.env*`. Los ADRs son historia del proyecto: deben sobrevivir un clone y verse para todos.
 
 ## 3. Coordinación de agentes (modelo de enjambre híbrido)
 

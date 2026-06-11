@@ -1,6 +1,6 @@
 ---
 name: ship-gate
-description: Auditoría pre-producción que escanea el código (seguridad, datos, despliegue, calidad, dependencias, frontend, observabilidad) y bloquea hasta que lo crítico pase. Úsalo antes de desplegar — "¿estoy listo para producción?", "preflight", "go-live checklist". No es para montar CI/CD.
+description: Úsalo antes de desplegar a producción — "¿estoy listo para shippear?", preflight, go-live checklist, "¿puedo desplegar?". No es para configurar CI/CD ni provisionar infraestructura.
 ---
 
 # Ship Gate — puerta de calidad pre-producción
@@ -19,7 +19,7 @@ Cuando detectes intención de desplegar ("deploy", "push to prod", "go live", "r
 5. **Dependencias**: lockfile presente y coherente, sin paquetes abandonados/typosquatting ni dependency confusion, scripts de ciclo de vida (`postinstall`) revisados (vector supply-chain), `npm ci` (no `npm install`) en CI, licencias compatibles.
 6. **Frontend** (si aplica): bundle dentro de presupuesto, sin claves privadas en cliente, estados de error/carga, accesibilidad mínima.
 7. **Observabilidad**: logging estructurado sin secretos/PII, métricas y alertas de los flujos críticos, trazas.
-8. **AI/LLM** (si aplica): sin prompt injection sin mitigar, límites de coste/rate, validación de salida del modelo.
+8. **AI/LLM** (si aplica): sin prompt injection sin mitigar, límites de costo/rate, validación de salida del modelo.
 
 ## Salida
 Tabla por categoría con estado (✅ pass / ❌ fail / ⚠️ manual), los hallazgos CRITICAL/HIGH con `archivo:línea`, y un veredicto final: **GO** / **NO-GO** con la lista exacta de bloqueantes a resolver.

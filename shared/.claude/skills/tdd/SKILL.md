@@ -42,7 +42,7 @@ NINGÚN CÓDIGO DE PRODUCCIÓN SIN UN TEST QUE FALLE PRIMERO
 | "Demasiado simple para testear" | El código simple también se rompe. El test cuesta 30 segundos. |
 | "Lo testeo después" | Un test que pasa de inmediato no prueba nada (¿testea lo correcto? ¿vio el fallo?). |
 | "Ya lo probé a mano" | Ad-hoc ≠ sistemático: sin registro, no re-ejecutable, se olvida bajo presión. |
-| "Borrar X horas es un desperdicio" | Falacia del coste hundido. Código sin tests fiables es deuda técnica. |
+| "Borrar X horas es un desperdicio" | Falacia del costo hundido. Código sin tests fiables es deuda técnica. |
 | "Lo guardo de referencia y escribo el test" | Lo vas a adaptar: eso es testear después. Borrar es borrar. |
 | "TDD es dogmático, soy pragmático" | TDD es lo pragmático: encontrar el bug antes del commit es más rápido que depurarlo en producción. |
 | "Difícil de testear, pero sigo" | Difícil de testear = difícil de usar. Escucha al test y rediseña, no lo fuerces. |
