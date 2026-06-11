@@ -16,7 +16,7 @@
 
 ## Rendimiento (mide, no adivines)
 - Elimina **waterfalls** de fetch (paraleliza, prefetch de datos críticos). Code splitting y lazy de rutas/componentes pesados.
-- Memoización (`memo`/`useMemo`/computed) **solo** cuando un profiler lo justifique; memoizar por reflejo añade coste y bugs.
+- Memoización (`memo`/`useMemo`/computed) **solo** cuando un profiler lo justifique; memoizar por reflejo añade costo y bugs.
 - Vigila el **bundle** (analiza, tree-shaking, imports puntuales). Imágenes en formato moderno y tamaños responsivos. Apunta a buen LCP/INP/CLS.
 
 ## UX y diseño

@@ -81,6 +81,44 @@ for (const s of stacks) {
 const tpl = path.join(ROOT, "shared/templates/PROJECT.template.md");
 if (!fs.existsSync(tpl)) errors.push("shared/templates/PROJECT.template.md: falta la plantilla de proyecto");
 
+// --- cruce STACKS (install.js) ↔ overlays del filesystem ---
+function fsStackIds() {
+  const ids = new Set();
+  const dir = path.join(ROOT, "stacks");
+  if (!fs.existsSync(dir)) return ids;
+  for (const cat of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!cat.isDirectory()) continue;
+    for (const st of fs.readdirSync(path.join(dir, cat.name), { withFileTypes: true })) {
+      if (!st.isDirectory() || st.name === "_common") continue;
+      if (fs.existsSync(path.join(dir, cat.name, st.name, ".claude", "CLAUDE.md"))) ids.add(`${cat.name}/${st.name}`);
+    }
+  }
+  return ids;
+}
+function declaredStackIds() {
+  const src = fs.readFileSync(path.join(ROOT, "install.js"), "utf8");
+  const m = src.match(/const\s+STACKS\s*=\s*\{([\s\S]*?)\};/);
+  const ids = new Set();
+  if (m) for (const k of m[1].matchAll(/["']([^"']+\/[^"']+)["']\s*:/g)) ids.add(k[1]);
+  return ids;
+}
+const fsIds = fsStackIds();
+const declIds = declaredStackIds();
+if (declIds.size === 0) errors.push("install.js: no se pudo extraer el objeto STACKS");
+for (const id of declIds) if (!fsIds.has(id)) errors.push(`STACKS["${id}"] (install.js) sin overlay stacks/${id}/.claude/CLAUDE.md`);
+for (const id of fsIds) if (!declIds.has(id)) errors.push(`overlay stacks/${id} sin entrada en STACKS de install.js (no se detectaría)`);
+
+// --- es-MX: peninsularismos prohibidos (solo agentes, skills y overlays; ver CONTRIBUTING.md) ---
+const ESMX = /\b(coste|costes|montar|montamos|montas|ordenador|ordenadores|fichero|ficheros|vale|pillas|pillamos|pill[eé])\b/i;
+for (const f of [...agents, ...skills, ...stacks]) {
+  fs.readFileSync(f, "utf8")
+    .split(/\r?\n/)
+    .forEach((ln, i) => {
+      const m = ln.match(ESMX);
+      if (m) errors.push(`${rel(f)}:${i + 1}: peninsularismo "${m[1]}" — usa es-MX (ver CONTRIBUTING.md)`);
+    });
+}
+
 // --- reporte ---
 console.log(`\n🔎 Validación del kit`);
 console.log(`   agentes: ${agents.length} · skills: ${skills.length} · overlays: ${stacks.length} · JS: ${jsFiles.length}`);

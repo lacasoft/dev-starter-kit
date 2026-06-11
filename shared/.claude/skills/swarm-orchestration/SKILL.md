@@ -39,8 +39,8 @@ Para **ejecutar un plan** en la misma sesión cuando quieres calidad por tarea (
    - **Revisión de calidad después** (orden fijo, solo con la spec en ✅): issues → fix → re-review hasta aprobar.
    - Marca la tarea completa y pasa a la siguiente.
 3. Al terminar todas, un revisor del **conjunto completo** antes de cerrar la rama.
-- **Modelo por rol**: tareas mecánicas (1-2 archivos, spec clara) → modelo rápido/barato; integración multi-archivo → estándar; diseño/arquitectura/review → el más capaz.
-- **Estados que reporta el implementador** (manéjalos, no los ignores): `DONE` → a revisión; `DONE_WITH_CONCERNS` → lee las dudas antes de seguir; `NEEDS_CONTEXT` → dale lo que falta y re-despacha; `BLOCKED` → cambia algo (más contexto, modelo más capaz, o trocea la tarea). Nunca re-despaches con el mismo modelo sin cambiar nada.
+- **Modelo**: los agentes del kit **heredan el modelo de la sesión** (no fijan `model:`). Si usas claude-flow, puedes asignar modelos por tipo de agente desde su runtime; con coordinación nativa, el modelo lo eliges tú a nivel de sesión.
+- **Estados que reporta el implementador** (manéjalos, no los ignores): `DONE` → a revisión; `DONE_WITH_CONCERNS` → lee las dudas antes de seguir; `NEEDS_CONTEXT` → dale lo que falta y re-despacha; `BLOCKED` → cambia algo (más contexto, trocea la tarea o sube el modelo de la sesión). Nunca re-despaches sin cambiar nada.
 
 ## Topologías (y cuándo usar cada una)
 - **Mesh** (pares iguales, decisión distribuida): exploración/búsqueda amplia, donde cada agente aporta un ángulo distinto.

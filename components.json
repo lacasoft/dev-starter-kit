@@ -4,11 +4,11 @@
 
   "claudeFlow": {
     "enabled": true,
-    "initCommand": "npx -y claude-flow@alpha init --force",
+    "initCommand": "npx -y claude-flow@3.10.41 init --force",
     "note": "Enjambre híbrido. Instala el runtime real (MCP + agentes + hooks de claude-flow). Opcional al aplicar."
   },
 
-  "cctCli": "npx -y claude-code-templates@latest",
+  "cctCli": "npx -y claude-code-templates@1.28.16",
 
   "shared": {
     "agents": [
@@ -71,7 +71,7 @@
   },
 
   "byStackId": {
-    "frontend/react": { "npm": ["framer-motion"], "tools": ["react-doctor"] },
+    "frontend/react": { "npm": ["motion"], "tools": ["react-doctor"] },
     "mobile/react-native": { "npm": ["react-native-reanimated"], "tools": ["react-doctor"] }
   },
 

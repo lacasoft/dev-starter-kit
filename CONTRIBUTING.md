@@ -2,6 +2,21 @@
 
 Guía para evolucionar el kit sin romper la coherencia. **Regla de oro:** tras cualquier cambio, corre `npm run validate` (lo exige la CI).
 
+## Idioma y estilo editorial
+
+Todo el **contenido del kit** (agentes, skills, overlays, docs) se escribe en **español de México**, registro técnico neutro. El código, identificadores, commits y logs van en inglés (ver sección *Idioma* de `CLAUDE.base.md`). `validate.cjs` falla la CI si aparecen peninsularismos de esta lista:
+
+| No (peninsular) | Sí (es-MX / neutro) |
+|---|---|
+| coste, costes | costo, costos |
+| montar (un sistema) | configurar, armar |
+| pillar / te pillas | cachar / notar |
+| ordenador | computadora |
+| fichero | archivo |
+| vale (= ok) | de acuerdo, ok |
+
+Términos técnicos en inglés que son nombre propio (p.ej. *pillar page* en SEO, *bundle*, *deploy*) se conservan.
+
 ## Estructura
 
 ```

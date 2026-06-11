@@ -14,8 +14,8 @@ Configuración `.claude` unificada para backend, frontend, mobile y blockchain. 
 │   ├── CLAUDE.base.md          # baseline universal (comportamiento, swarm, seguridad, calidad)
 │   ├── settings.json           # hooks + permisos + statusLine
 │   ├── agents/                 # core: planner, coder, reviewer, tester, researcher (reglas reales)
-│   ├── skills/                 # swarm-orchestration, tdd, diagnose, grill-me, handoff
-│   ├── commands/               # /swarm, /monitoring:status
+│   ├── skills/                 # 15 skills (flujo + ingeniería) — ver "Skills incluidas"
+│   ├── commands/               # /swarm, /kit:status
 │   ├── helpers/                # hook-handler, memory, session, router, intelligence, statusline
 │   └── templates/              # PROJECT.template.md (definición del proyecto)
 ├── stacks/                     # OVERLAYS por categoría/stack
@@ -36,7 +36,7 @@ npx github:lacasoft/dev-starter-kit --yes --all   # desatendido (todo)
 npx github:lacasoft/dev-starter-kit#v1.2.0     # fijar una versión (tag)
 ```
 
-Toma siempre la última versión de `master` (o el tag indicado). Repo **privado**: funciona con tu auth de `git`/`gh`.
+Toma siempre la última versión de `master` (o el tag indicado). Repo **público (MIT)**.
 
 Alternativa (clone local):
 
@@ -121,7 +121,7 @@ Sin claude-flow, nuestra capa aporta el runtime completo (settings + helpers + a
 
 ## Mantenimiento
 
-Repo **privado** distribuido por `npx github:` → la rama **`master` debe estar siempre verde**.
+Repo **público (MIT)** distribuido por `npx github:` → la rama **`master` debe estar siempre verde**.
 
 - **Validar** antes de commitear: `npm run validate` (frontmatter, JSON, sintaxis; zero-dep).
 - **CI** (`.github/workflows/ci.yml`): valida + smoke-test del instalador en los 8 stacks (dry-run) en cada PR.
@@ -135,11 +135,3 @@ Repo **privado** distribuido por `npx github:` → la rama **`master` debe estar
   ```bash
   npx github:lacasoft/dev-starter-kit --update --yes
   ```
-
-### Publicar el repo (una vez)
-
-```bash
-git remote add origin git@github.com:lacasoft/dev-starter-kit.git
-git push -u origin master
-```
-A partir de ahí, cualquier proyecto: `npx github:lacasoft/dev-starter-kit`.
