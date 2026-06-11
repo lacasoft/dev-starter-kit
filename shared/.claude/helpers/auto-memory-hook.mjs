@@ -14,7 +14,12 @@ try {
 } catch (_) {}
 
 if (action === "import") {
-  const recientes = memory.recent(10).filter((e) => e.summary || e.text);
+  // Solo entradas con CONTENIDO real (notas, decisiones, aprendizajes); nunca los marcadores "session"
+  // (eran ruido: "sesión sincronizada (N eventos)" repetido). La memoria rica la escribe la skill `handoff`.
+  const recientes = memory
+    .recent(20)
+    .filter((e) => e.kind !== "session" && (e.text || e.summary))
+    .slice(-10);
   if (recientes.length) {
     const lineas = recientes.map((e) => `- ${e.summary || e.text}`);
     process.stdout.write("🧠 Memoria del proyecto (recientes):\n" + lineas.join("\n") + "\n");

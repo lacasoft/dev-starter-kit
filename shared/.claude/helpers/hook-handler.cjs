@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Entry-point único de hooks. Claude Code pasa el payload del hook como JSON por STDIN.
- * Acciones (1ª arg): pre-bash, pre-edit, post-edit, post-bash, route,
+ * Acciones (1ª arg): pre-bash, pre-edit, post-edit, post-bash,
  *                     session-restore, session-end, post-task, notify, compact-manual, compact-auto, status.
  *
  * Diseño: NUNCA bloquea salvo casos peligrosos explícitos (rm -rf /). Nunca falla la sesión
@@ -159,18 +159,6 @@ switch (action) {
       run(`gofmt -w ${JSON.stringify(file)}`);
     } else if (ext === ".php") {
       run(`php-cs-fixer fix ${JSON.stringify(file)} --quiet`);
-    }
-    break;
-  }
-
-  case "route": {
-    const prompt = payload.prompt || "";
-    const router = load("router.cjs");
-    const intel = load("intelligence.cjs");
-    if (prompt && router && intel) {
-      try {
-        intel.record({ kind: "prompt", text: String(prompt).slice(0, 500), agent: router.route(prompt) });
-      } catch (_) {}
     }
     break;
   }

@@ -29,13 +29,6 @@
         ]
       }
     ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          { "type": "command", "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/hook-handler.cjs\" route'", "timeout": 8 }
-        ]
-      }
-    ],
     "SessionStart": [
       {
         "hooks": [
@@ -79,11 +72,34 @@
   },
   "permissions": {
     "allow": [
-      "Bash(npx claude-flow*)",
       "Bash(node .claude/*)",
-      "Bash(npm run lint*)",
-      "Bash(npm run format*)",
+      "Bash(npm run *)",
       "Bash(npm test*)",
+      "Bash(npm ci)",
+      "Bash(npx *)",
+      "Bash(pnpm *)",
+      "Bash(yarn *)",
+      "Bash(pytest*)",
+      "Bash(python -m pytest*)",
+      "Bash(ruff*)",
+      "Bash(mypy*)",
+      "Bash(flutter test*)",
+      "Bash(flutter analyze)",
+      "Bash(dart *)",
+      "Bash(forge test*)",
+      "Bash(forge build)",
+      "Bash(forge fmt*)",
+      "Bash(slither *)",
+      "Bash(composer *)",
+      "Bash(php *)",
+      "Bash(vendor/bin/*)",
+      "Bash(go test*)",
+      "Bash(go build*)",
+      "Bash(cargo test*)",
+      "Bash(cargo build*)",
+      "Bash(turbo *)",
+      "Bash(biome*)",
+      "Bash(claude-flow*)",
       "mcp__claude-flow__*"
     ],
     "deny": [
