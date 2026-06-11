@@ -327,7 +327,7 @@ async function main() {
       agents.forEach((a) => console.log(`   agent  ${a}`));
       skills.forEach((s) => console.log(`   skill  ${s}`));
       if (await confirm("¿Instalarlos vía claude-code-templates? (requiere red)", FLAGS.all)) {
-        const cli = manifest.cctCli || "npx -y claude-code-templates@latest";
+        const cli = manifest.cctCli || "npx -y claude-code-templates@1.28.16";
         for (const a of agents) run(`${cli} --agent ${a} --yes`);
         for (const s of skills) run(`${cli} --skill ${s} --yes`);
       } else {

@@ -94,6 +94,18 @@ function run(cmd, opts = {}) {
   }
 }
 
+// Salida JSON de PreToolUse: deny BLOQUEA y el modelo recibe el motivo;
+// addContext inyecta una nota al modelo sin bloquear. (exit 0 + stderr es invisible al modelo.)
+function denyPreTool(reason) {
+  process.stdout.write(
+    JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: reason } })
+  );
+  process.exit(0);
+}
+function addContext(text) {
+  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", additionalContext: text } }));
+}
+
 const payload = readPayload();
 const toolInput = payload.tool_input || {};
 
@@ -115,12 +127,21 @@ switch (action) {
 
   case "pre-edit": {
     const file = toolInput.file_path || "";
-    if (/(^|\/)\.env(\.|$)/.test(file)) {
-      console.error(`⚠️  Editando archivo de entorno (${file}). No incluyas secretos reales en el repo.`);
+    // Recolecta TODO el contenido a escribir: Write(content), Edit(new_string), MultiEdit(edits[].new_string).
+    const parts = [];
+    if (toolInput.content) parts.push(toolInput.content);
+    if (toolInput.new_string) parts.push(toolInput.new_string);
+    if (Array.isArray(toolInput.edits)) for (const e of toolInput.edits) if (e && e.new_string) parts.push(e.new_string);
+    const hit = scanSecrets(parts.join("\n"));
+    if (hit) {
+      // Bloquea Y el modelo recibe el motivo (no un aviso invisible).
+      denyPreTool(
+        `Posible secreto (${hit}) en el contenido a escribir${file ? ` en ${file}` : ""}. No hardcodees secretos: usa variables de entorno / secret manager. Si es un placeholder/ejemplo, hazlo evidente (p.ej. prefijo your_/example_).`
+      );
     }
-    const content = toolInput.content || toolInput.new_string || "";
-    const hit = scanSecrets(content);
-    if (hit) console.error(`⚠️  Posible secreto en el contenido a escribir (${hit}). Usa variables de entorno / secret manager.`);
+    if (/(^|\/)\.env(\.|$)/.test(file)) {
+      addContext(`Editando un archivo de entorno (${file}): no versiones secretos reales; usa .env.example con placeholders.`);
+    }
     break;
   }
 

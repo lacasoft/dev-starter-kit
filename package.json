@@ -21,7 +21,7 @@
     "scripts/",
     "README.md"
   ],
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lacasoft/dev-starter-kit.git"
