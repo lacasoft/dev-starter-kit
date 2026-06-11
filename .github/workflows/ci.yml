@@ -23,12 +23,11 @@ jobs:
       - name: Smoke test del instalador (dry-run por stack)
         run: |
           set -e
-          for s in backend/nestjs backend/fastapi backend/php \
-                   frontend/angular frontend/react \
-                   mobile/react-native mobile/flutter blockchain/solidity; do
+          # Lista derivada de STACKS en install.js (fuente única; ver scripts/stacks.cjs)
+          for s in $(node scripts/stacks.cjs); do
             echo "--- $s ---"
             tmp="$(mktemp -d)"
             ( cd "$tmp" && node "$GITHUB_WORKSPACE/install.js" --yes --no-flow --no-external --stack "$s" --dry-run >/dev/null )
             rm -rf "$tmp"
           done
-          echo "✅ instalador OK en todos los stacks"
+          echo "✅ instalador OK en todos los stacks ($(node scripts/stacks.cjs | wc -l))"
