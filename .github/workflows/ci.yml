@@ -18,6 +18,8 @@ jobs:
           node-version: 20
       - name: Validar integridad del kit
         run: node scripts/validate.cjs
+      - name: Tests (hook-handler — guards y escáner de secretos)
+        run: node --test
       - name: Smoke test del instalador (dry-run por stack)
         run: |
           set -e

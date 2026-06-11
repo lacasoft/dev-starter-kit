@@ -271,6 +271,64 @@ function cctFor(stackId) {
   return { agents: [...new Set(agents)], skills: [...new Set(skills)] };
 }
 
+// Crea .env.example (la baseline lo exige versionado) si falta y el proyecto usa env.
+async function scaffoldEnvExample() {
+  const dest = path.join(CWD, ".env.example");
+  if (fs.existsSync(dest)) return;
+  const usesEnv = ["package.json", "pyproject.toml", "requirements.txt", "composer.json", "go.mod", "pom.xml", ".env"].some((f) =>
+    fs.existsSync(path.join(CWD, f))
+  );
+  if (!usesEnv) return;
+  if (!(await confirm("¿Crear .env.example (placeholders de las env vars)?", true))) return;
+  const body = [
+    "# .env.example — variables de entorno del proyecto (SIN valores reales).",
+    "# Cópialo a .env (gitignored) y rellena. Documenta aquí cada variable nueva.",
+    "# Regla del kit: nada hardcodeado; toda config que cambie entre entornos va aquí.",
+    "",
+    "# NODE_ENV=development",
+    "# DATABASE_URL=",
+    "# REDIS_URL=",
+    "",
+  ].join("\n");
+  if (!FLAGS.dryRun) fs.writeFileSync(dest, body);
+  console.log("  ➕ ./.env.example (rellénalo y añade tus variables)");
+}
+
+// Ofrece tooling de git que la baseline exige (husky + lint-staged + commitlint + plantilla de PR).
+async function maybeSetupHusky() {
+  const pkgPath = path.join(CWD, "package.json");
+  if (!fs.existsSync(pkgPath)) return; // solo proyectos Node
+  const pkg = readJSON(pkgPath) || {};
+  const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+  if (deps.husky) {
+    console.log("  ✓ husky ya presente.");
+    return;
+  }
+  console.log("\n🪝 Git hooks: husky + lint-staged + commitlint + plantilla de PR (la baseline los exige).");
+  if (!(await confirm("¿Configurarlos ahora? (instala devDeps)", FLAGS.all))) {
+    console.log("  → Omitido. Hazlo luego o la regla aplica solo 'si el repo los tiene'.");
+    return;
+  }
+  if (run("npm install -D husky lint-staged @commitlint/cli @commitlint/config-conventional") && run("npx husky init")) {
+    if (!FLAGS.dryRun) {
+      try {
+        fs.writeFileSync(path.join(CWD, "commitlint.config.cjs"), 'module.exports = { extends: ["@commitlint/config-conventional"] };\n');
+        fs.writeFileSync(path.join(CWD, ".husky", "commit-msg"), 'npx --no-install commitlint --edit "$1"\n');
+        fs.writeFileSync(path.join(CWD, ".husky", "pre-commit"), "npx --no-install lint-staged\n");
+        const prDir = path.join(CWD, ".github");
+        fs.mkdirSync(prDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(prDir, "pull_request_template.md"),
+          "## Summary\n\n## Test plan\n- [ ] \n"
+        );
+        console.log("  ➕ commitlint.config.cjs, .husky/{commit-msg,pre-commit}, .github/pull_request_template.md");
+      } catch (e) {
+        console.error(`  ⚠️  ${e.message}`);
+      }
+    }
+  }
+}
+
 // ---------- main ----------
 async function main() {
   const VERSION = (readJSON(path.join(KIT, "package.json")) || {}).version || "?";
@@ -341,6 +399,7 @@ async function main() {
   const hasProject = await scaffoldProject();
   composeClaudeMd(stackId, hasProject);
   ensureGitignore();
+  await scaffoldEnvExample();
 
   // 4) externos (claude-code-templates: agentes + skills)
   if (!FLAGS.noExternal) {
@@ -369,6 +428,9 @@ async function main() {
     if (extra?.tools?.includes("react-doctor")) {
       console.log("\n🩺 react-doctor disponible: `npx react-doctor@latest .` para auditar (state/perf/a11y). No se cablea como hook bloqueante.");
     }
+
+    // 5b) tooling de git: husky + lint-staged + commitlint + plantilla de PR (la baseline los exige)
+    await maybeSetupHusky();
   }
 
   // 6) plugins de Claude Code (se añaden DENTRO de Claude Code, no por shell): shared + por-stack

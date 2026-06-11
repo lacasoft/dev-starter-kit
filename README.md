@@ -14,7 +14,7 @@ Configuración `.claude` unificada para backend, frontend, mobile y blockchain. 
 │   ├── CLAUDE.base.md          # baseline universal (comportamiento, swarm, seguridad, calidad)
 │   ├── settings.json           # hooks + permisos + statusLine
 │   ├── agents/                 # core: planner, coder, reviewer, tester, researcher (reglas reales)
-│   ├── skills/                 # swarm-orchestration, tdd, diagnose, grill-me, handoff
+│   ├── skills/                 # 15 skills (flujo + ingeniería) — ver "Skills incluidas"
 │   ├── commands/               # /swarm, /kit:status
 │   ├── helpers/                # hook-handler, memory, session, router, intelligence, statusline
 │   └── templates/              # PROJECT.template.md (definición del proyecto)
@@ -135,11 +135,3 @@ Repo **público (MIT)** distribuido por `npx github:` → la rama **`master` deb
   ```bash
   npx github:lacasoft/dev-starter-kit --update --yes
   ```
-
-### Publicar el repo (una vez)
-
-```bash
-git remote add origin git@github.com:lacasoft/dev-starter-kit.git
-git push -u origin master
-```
-A partir de ahí, cualquier proyecto: `npx github:lacasoft/dev-starter-kit`.

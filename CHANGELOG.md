@@ -2,6 +2,36 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](https://semver.org/).
 
+## [2.0.0] - 2026-06-11
+
+Hardening a partir de una revisión externa: el kit ahora **se aplica sus propias reglas** (supply chain, código muerto, tests, verificación, es-MX).
+
+### Fixed (seguridad / correctitud)
+- **Licencia/legal**: añade `LICENSE` MIT y `package.json` MIT; README corregido (era público sin licencia y decía "privado").
+- **Timeouts de hooks** en segundos (estaban en ms → 5000 = ~83 min; la protección estaba anulada).
+- **Escáner de secretos efectivo**: PreToolUse JSON `permissionDecision: deny` (el modelo recibe el motivo; antes `exit 0`+stderr era invisible) y cubre Write/Edit/**MultiEdit**.
+- **Supply chain**: actions pineadas por SHA; `claude-flow@3.10.41` y `claude-code-templates@1.28.16` (no `@alpha`/`@latest`); `permissions: contents:read` en CI.
+- **Permisos** ampliados (pytest, flutter, forge, composer, pnpm, turbo…) — antes solo npm.
+- **Memoria** sin ruido: `import` ya no inyecta los marcadores "sesión sincronizada".
+
+### Changed
+- **Modelos**: los 14 agentes **heredan** el modelo de la sesión (sin `model:`); regla de modelo en swarm neutralizada.
+- **es-MX** como regla exigible: sección Idioma en baseline, glosario en CONTRIBUTING y **check en `validate.cjs`** (falla CI ante peninsularismos). Corrige coste→costo, montar→configurar/armar, etc.
+- Descriptions CSO (ci-cd, monorepo, performance-profiling, iac, ship-gate): "solo cuándo".
+- Agentes con **un** `<example>` (antes dos → menos contexto fijo por sesión).
+- **/monitoring:status → /kit:status** (rename). `framer-motion → motion`.
+- `/docs/adr` se versiona (excepción a `/docs`).
+
+### Added
+- **Overlays**: `frontend/nextjs` (App Router — antes Next caía en Vite), `backend/express`, `backend/django`, `backend/spring`, `backend/dotnet`; detección actualizada (next antes que react).
+- **Tests** del hook-handler con `node:test` (guards rm -rf/push --force, escáner de secretos, allowlist) + paso en CI.
+- `validate.cjs` cruza `STACKS` ↔ overlays del filesystem.
+- Instalador: scaffold de `.env.example` y setup opt-in de husky+lint-staged+commitlint+plantilla de PR.
+- `coder`: estándares por lenguaje PHP/Java/Dart.
+
+### Removed
+- Código muerto: `router.cjs`, `intelligence.cjs` y el hook `UserPromptSubmit` de routing (nadie los consumía).
+
 ## [1.3.0] - 2026-06-04
 
 ### Added
