@@ -104,23 +104,46 @@ function fileHas(p, re) {
     return false;
   }
 }
+function hasFile(...names) {
+  return names.some((n) => fs.existsSync(path.join(CWD, n)));
+}
+function dirHasExt(re) {
+  try {
+    return fs.readdirSync(CWD).some((f) => re.test(f));
+  } catch (_) {
+    return false;
+  }
+}
 function detectStack() {
   const pkg = readJSON(path.join(CWD, "package.json")) || {};
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+  const req = path.join(CWD, "requirements.txt");
+  const pyproj = path.join(CWD, "pyproject.toml");
+  // mobile
   if (fs.existsSync(path.join(CWD, "pubspec.yaml"))) return "mobile/flutter";
   if (deps["react-native"] || deps["expo"]) return "mobile/react-native";
+  // frontend
   if (fs.existsSync(path.join(CWD, "angular.json")) || deps["@angular/core"]) return "frontend/angular";
+  if (hasFile("next.config.js", "next.config.mjs", "next.config.ts") || deps["next"]) return "frontend/nextjs"; // antes que react
+  // backend específicos
   if (fs.existsSync(path.join(CWD, "nest-cli.json")) || deps["@nestjs/core"]) return "backend/nestjs";
   if (fs.existsSync(path.join(CWD, "foundry.toml"))) return "blockchain/solidity";
+  if (dirHasExt(/\.(csproj|sln)$/)) return "backend/dotnet";
+  if (fileHas(path.join(CWD, "pom.xml"), /spring-boot/i) || fileHas(path.join(CWD, "build.gradle"), /spring/i) || fileHas(path.join(CWD, "build.gradle.kts"), /spring/i)) return "backend/spring";
+  if (fs.existsSync(path.join(CWD, "manage.py")) || fileHas(req, /(^|\n)\s*django\b/i) || fileHas(pyproj, /\bdjango\b/i)) return "backend/django";
   if (fs.existsSync(path.join(CWD, "composer.json"))) return "backend/php";
-  if (fileHas(path.join(CWD, "requirements.txt"), /fastapi/i) || fileHas(path.join(CWD, "pyproject.toml"), /fastapi/i)) return "backend/fastapi";
+  if (fileHas(req, /fastapi/i) || fileHas(pyproj, /fastapi/i)) return "backend/fastapi";
+  // frontend genérico (después de next)
   if (deps["react"] && deps["react-dom"]) return "frontend/react";
+  // backend JS genérico (Express/Fastify/Koa) — al final, ya descartados los frontends
+  if (deps["express"] || deps["fastify"] || deps["koa"]) return "backend/express";
   return null;
 }
 
 const STACKS = {
-  "backend/nestjs": 1, "backend/fastapi": 1, "backend/php": 1,
-  "frontend/angular": 1, "frontend/react": 1,
+  "backend/nestjs": 1, "backend/express": 1, "backend/fastapi": 1, "backend/django": 1,
+  "backend/php": 1, "backend/spring": 1, "backend/dotnet": 1,
+  "frontend/angular": 1, "frontend/react": 1, "frontend/nextjs": 1,
   "mobile/react-native": 1, "mobile/flutter": 1,
   "blockchain/solidity": 1,
 };
