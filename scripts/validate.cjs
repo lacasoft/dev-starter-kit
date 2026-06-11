@@ -108,9 +108,18 @@ if (declIds.size === 0) errors.push("install.js: no se pudo extraer el objeto ST
 for (const id of declIds) if (!fsIds.has(id)) errors.push(`STACKS["${id}"] (install.js) sin overlay stacks/${id}/.claude/CLAUDE.md`);
 for (const id of fsIds) if (!declIds.has(id)) errors.push(`overlay stacks/${id} sin entrada en STACKS de install.js (no se detectaría)`);
 
-// --- es-MX: peninsularismos prohibidos (solo agentes, skills y overlays; ver CONTRIBUTING.md) ---
+// --- es-MX: peninsularismos prohibidos (agentes, skills, overlays, comandos, plantillas, helpers; ver CONTRIBUTING.md) ---
+// Excluye CLAUDE.base.md y CONTRIBUTING.md a propósito: ahí vive el glosario que cita estos términos.
 const ESMX = /\b(coste|costes|montar|montamos|montas|ordenador|ordenadores|fichero|ficheros|vale|pillas|pillamos|pill[eé])\b/i;
-for (const f of [...agents, ...skills, ...stacks]) {
+const esmxFiles = [
+  ...agents,
+  ...skills,
+  ...stacks,
+  ...walk(path.join(ROOT, "shared/.claude/commands"), (p) => p.endsWith(".md")),
+  ...walk(path.join(ROOT, "shared/templates"), (p) => p.endsWith(".md")),
+  ...walk(path.join(ROOT, "shared/.claude/helpers"), (p) => /\.(cjs|mjs|js)$/.test(p)),
+];
+for (const f of esmxFiles) {
   fs.readFileSync(f, "utf8")
     .split(/\r?\n/)
     .forEach((ln, i) => {

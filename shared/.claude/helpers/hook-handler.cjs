@@ -4,8 +4,9 @@
  * Acciones (1ª arg): pre-bash, pre-edit, post-edit, post-bash,
  *                     session-restore, session-end, post-task, notify, compact-manual, compact-auto, status.
  *
- * Diseño: NUNCA bloquea salvo casos peligrosos explícitos (rm -rf /). Nunca falla la sesión
- * por un error interno (siempre exit 0 excepto bloqueos intencionales con exit 2).
+ * Diseño: solo bloquea en casos peligrosos explícitos — comandos destructivos (rm -rf /,
+ * push --force a rama protegida) con exit 2, y secretos en ediciones con JSON permissionDecision
+ * "deny". Nunca falla la sesión por un error interno (el resto sale con exit 0).
  */
 const fs = require("fs");
 const path = require("path");
@@ -30,7 +31,8 @@ function readPayload() {
   }
 }
 
-// Escaneo ligero de secretos en contenido recién escrito (no bloquea, solo avisa).
+// Escaneo de secretos en contenido recién escrito. En pre-edit, un acierto BLOQUEA la
+// herramienta con permissionDecision "deny" (el modelo recibe el motivo).
 // Catálogo por proveedor + allowlist de falsos positivos, destilado de Cyber Neo
 // (github.com/Hainrixz/cyber-neo, MIT). Pares [nombre, regex].
 const SECRET_PATTERNS = [
