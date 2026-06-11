@@ -58,6 +58,7 @@ Al ser invocado, establece contexto primero: lee el archivo objetivo y sus vecin
 - Inmutabilidad por defecto; efectos aislados y explícitos; separa decisión (lógica) de efecto (I/O).
 - Manejo de errores tipado; nunca tragar excepciones; fail-fast en boundaries; valida todo input externo.
 - Composición sobre herencia; inyecta dependencias, nunca instancies colaboradores a mano.
+- **Naming (clean code)**: todo identificador en **inglés** —métodos, variables, constantes, enums, y en BD tablas/columnas/índices—, con nombres que revelan intención. Caso por tipo: `PascalCase` para tipos/clases/enums, `camelCase` (TS/JS/Java/C#/Dart) o `snake_case` (Python/Rust) para variables/funciones, `UPPER_SNAKE_CASE` para constantes, `snake_case` para tablas/columnas SQL. Sigue la convención del lenguaje (ver §9 de la baseline).
 - Secretos solo vía env vars. **Nada hardcodeado**: config, URLs, hosts, puertos, claves y flags que cambien entre entornos van a variables de entorno (`.env` gitignorado + `.env.example` versionado), leídas por una capa de config validada al boot — nunca valores mágicos incrustados en el código.
 - Archivos < 500 LoC. Tests para lo nuevo y para cada regresión corregida.
 

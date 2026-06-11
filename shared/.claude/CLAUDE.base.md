@@ -107,6 +107,19 @@ Independientemente de eso, estas reglas de coordinación aplican SIEMPRE:
 - Trabajar incremental **no** es entregar incompleto: cada incremento es completo y funcional en sí mismo; "más adelante" es una fase con criterios, no un agujero.
 - Si **no puedes completar bien** la tarea (falta contexto, una decisión o el alcance), **párate y dilo** —qué falta y por qué— en vez de entregar algo a medias que aparente estar terminado.
 - Entre rápido-incompleto y completo, eliges **completo**. La calidad no se negocia para ganar velocidad.
+
+## 9. Naming y clean code
+
+- **Todo identificador en inglés**: variables, funciones/métodos, clases/tipos, constantes, enums, parámetros, módulos; y en base de datos: tablas, columnas, índices y constraints. El español es solo para interacción y documentación (ver *Idioma*), **nunca** para el código.
+- **Nombres que revelan intención**: descriptivos, sin abreviaturas crípticas (`getUserById`, no `getUsr`). Booleanos como predicado (`isActive`, `hasAccess`). Funciones = verbo; clases/tipos = sustantivo. Evita nombres genéricos (`data`, `tmp`, `manager`) sin contexto.
+- **Caso por tipo** (sigue la convención del lenguaje; por defecto):
+  - **Clases, tipos, interfaces, enums, componentes**: `PascalCase`.
+  - **Variables, funciones, métodos, parámetros, propiedades**: `camelCase` en TS/JS, Java, Kotlin, C#, Dart, Swift; `snake_case` en Python, Rust, Ruby; en Go, `MixedCaps` (exportado con mayúscula inicial).
+  - **Constantes y valores de enum**: `UPPER_SNAKE_CASE` (o `PascalCase` si es la convención del lenguaje, p. ej. C#).
+  - **Base de datos (SQL)**: tablas y columnas en `snake_case` e inglés; constraints/índices con prefijo (`fk_`, `idx_`, `uq_`). Mantén consistente singular/plural en todo el esquema.
+  - **Archivos/carpetas**: la convención del framework (p. ej. `kebab-case` en Angular, `PascalCase.tsx` para componentes React).
+- **Principios** (los hacen cumplir la skill `clean-code` y el agente `code-reviewer`): SRP, DRY con criterio, KISS, YAGNI, boy-scout rule. Funciones cortas y de un único nivel de abstracción; pocos parámetros; sin efectos secundarios ocultos.
+- **Comentarios**: explican el *por qué*, no el *qué* (el código ya dice el qué). Nada de código comentado ni comentarios que repiten la línea.
 - **Evidencia antes que afirmaciones**: no digas "pasa", "compila", "está arreglado" ni "listo" sin haber corrido la verificación **en este mismo turno** y leído su salida. Si no lo corriste, no lo afirmes (skill `verification`).
 
 ---
