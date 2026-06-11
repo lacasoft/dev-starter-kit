@@ -2,6 +2,16 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](https://semver.org/).
 
+## [2.0.1] - 2026-06-11
+
+### Fixed
+- **CI**: el smoke-test deriva los stacks de `install.js` (`scripts/stacks.cjs`, fuente única) en vez de una lista hardcodeada; ahora cubre los 13 (django/dotnet/express/spring/nextjs ya entran en CI).
+- **Permisos** (supply chain): se quitan los comodines `Bash(npx */pnpm */yarn *)` que permitían ejecutar paquetes arbitrarios de internet sin confirmación. Acotado a `npx claude-flow*`/`react-doctor*`, `pnpm run *`/`test*`, `yarn run *`/`test*`.
+- **hook-handler**: comentarios honestos (el escáner de secretos bloquea con `permissionDecision: deny`, no "solo avisa").
+
+### Changed
+- README documenta el caso fullstack (un solo `package.json` → gana frontend; `--stack` para forzar). El check es-MX de `validate.cjs` cubre también `commands/`, `templates/` y `helpers/`.
+
 ## [2.0.0] - 2026-06-11
 
 Hardening a partir de una revisión externa: el kit ahora **se aplica sus propias reglas** (supply chain, código muerto, tests, verificación, es-MX).
