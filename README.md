@@ -8,22 +8,23 @@ Configuración `.claude` unificada para backend, frontend, mobile y blockchain. 
 
 ```
 .
-├── install.js                  # instalador: detecta stack, aplica capa base, orquesta externos
+├── install.js                  # instalador: detecta stack, aplica capa base, actualiza, resume
 ├── components.json             # manifiesto curado de componentes externos (revisados 1 a 1)
 ├── shared/.claude/             # CAPA BASE (común a todos los proyectos)
 │   ├── CLAUDE.base.md          # baseline universal (comportamiento, swarm, seguridad, calidad)
 │   ├── settings.json           # hooks + permisos + statusLine
-│   ├── agents/                 # core: planner, coder, reviewer, tester, researcher (reglas reales)
+│   ├── agents/                 # 14 agentes (5 core + 9 especialistas) — ver "Agentes incluidos"
 │   ├── skills/                 # 15 skills (flujo + ingeniería) — ver "Skills incluidas"
 │   ├── commands/               # /swarm, /kit:status
-│   ├── helpers/                # hook-handler, memory, session, router, intelligence, statusline
+│   ├── helpers/                # hook-handler, memory, session, statusline, auto-memory-hook
 │   └── templates/              # PROJECT.template.md (definición del proyecto)
-├── stacks/                     # OVERLAYS por categoría/stack
-│   ├── backend/{_common,nestjs,fastapi,php}
-│   ├── frontend/{_common,angular,react}
+├── stacks/                     # OVERLAYS: 13 stacks seleccionables + un `_common` por categoría
+│   ├── backend/{_common,nestjs,express,fastapi,django,php,spring,dotnet}
+│   ├── frontend/{_common,angular,react,nextjs}
 │   ├── mobile/{_common,react-native,flutter}
 │   └── blockchain/solidity
-└── README.md
+├── scripts/                    # validate.cjs (integridad del kit) · stacks.cjs (fuente única)
+└── test/                       # tests del hook-handler y de --update (node:test, zero-dep)
 ```
 
 ## Uso
@@ -31,9 +32,9 @@ Configuración `.claude` unificada para backend, frontend, mobile y blockchain. 
 Dentro de **cualquier proyecto** (nuevo o heredado), sin clonar nada:
 
 ```bash
-npx github:lacasoft/dev-starter-kit            # interactivo
-npx github:lacasoft/dev-starter-kit --yes --all   # desatendido (todo)
-npx github:lacasoft/dev-starter-kit#v1.2.0     # fijar una versión (tag)
+npx -y github:lacasoft/dev-starter-kit              # interactivo
+npx -y github:lacasoft/dev-starter-kit --yes --all  # desatendido (todo)
+npx -y github:lacasoft/dev-starter-kit#v2.1.0       # fijar una versión (recomendado)
 ```
 
 Toma siempre la última versión de `master` (o el tag indicado). Repo **público (MIT)**.
@@ -137,27 +138,23 @@ Sin claude-flow, nuestra capa aporta el runtime completo (settings + helpers + a
 
 ## Componentes externos (curados, ver `components.json`)
 
-**Integrados por stack** (vía `claude-code-templates`):
+**Integrados por stack** (vía `claude-code-templates`, solo los marcados `integrar`):
 - shared: `code-reviewer`, skills `clean-code`, `senior-security`; marketplace oficial de plugins.
-- backend: `database-architect`, `test-engineer`, `architect-review`; skill `docker-expert`.
+- backend: `database-architect`, `test-engineer`; skill `docker-expert`.
 - frontend/mobile: `frontend-developer`, `ui-ux-designer`; skills `frontend-design`, `ui-design-system`.
-- frontend/react + mobile/react-native: dep npm de animación + `react-doctor` (auditoría on-demand).
+- frontend/react + mobile/react-native: dep npm de animación (`motion` / `react-native-reanimated`)
+  + `react-doctor` (auditoría on-demand, no se cablea como hook bloqueante).
 
-**Descartados** (con motivo en `components.json`):
+**Opcionales** (en `components.json` pero *no* se instalan solos; añádelos a mano si los quieres):
+`architect-review` (backend) y `senior-frontend` (frontend).
+
+**Descartados** (extracto; los 10 con su motivo están en `components.json` → `discarded`):
 - `claude-mem` — duplica nuestra memoria y registra hooks propios.
 - `mcp-expert` — atado al repo del CLI de davila7.
 - hooks de claude-code-templates (`lint-on-save`, `smart-formatting`, `security-scanner`, `tdd-gate`) —
   su instalador **pisa** nuestros arrays de hooks; su intención (format+lint+secret-scan) ya está en `hook-handler.cjs`.
 - `react-best-practices` (cct) — duplica la skill `vercel:react-best-practices` del harness.
 
-## Mantenimiento
-
-Repo **público (MIT)** distribuido por `npx github:` → la rama **`master` debe estar siempre verde**.
-
-- **Validar** antes de commitear: `npm run validate` (frontmatter, JSON, sintaxis; zero-dep).
-- **CI** (`.github/workflows/ci.yml`): valida + smoke-test del instalador en los 8 stacks (dry-run) en cada PR.
-- **Cómo añadir** agentes, skills, stacks o externos: ver [CONTRIBUTING.md](CONTRIBUTING.md).
-- **Versionado**: SemVer en `package.json` + `CHANGELOG.md`. Fija versiones por tag (`#v1.2.0`).
 ## Actualizar un proyecto ya instalado
 
 ```bash
@@ -206,8 +203,20 @@ versión** — y de paso hace la instalación reproducible:
 
 ```bash
 npx -y github:lacasoft/dev-starter-kit#v2.1.0 --update --yes   # por tag
-npx -y github:lacasoft/dev-starter-kit#52c5332 --update --yes  # por commit
+npx -y github:lacasoft/dev-starter-kit#585beb1 --update --yes  # por commit (equivale a v2.1.0)
 ```
 
 Si aun así sospechas que te sirvió una copia vieja, compara el número de versión del banner del
 instalador con el del `CHANGELOG` y limpia con `npm cache clean --force`.
+
+## Mantenimiento
+
+Repo **público (MIT)** distribuido por `npx github:` → la rama **`master` debe estar siempre verde**.
+
+- **Validar** antes de commitear: `npm run validate` (frontmatter, JSON, sintaxis, es-MX; zero-dep).
+- **Tests**: `npm test` (`node:test`, sin dependencias) — guards del hook-handler y `--update`.
+- **CI** (`.github/workflows/ci.yml`): valida + tests + smoke-test del instalador en los **13 stacks**
+  (dry-run) en cada PR. La lista sale de `scripts/stacks.cjs`, que la deriva de `install.js`.
+- **Cómo añadir** agentes, skills, stacks o externos: ver [CONTRIBUTING.md](CONTRIBUTING.md).
+- **Versionado**: SemVer en `package.json` + `CHANGELOG.md`, con tag anotado por versión
+  (`v2.1.0`). Instala siempre pineando (`#v2.1.0`): es reproducible y evita la cache de npx.
