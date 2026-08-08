@@ -2,6 +2,22 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](https://semver.org/).
 
+## [No publicado]
+
+Correcciones salidas de instalar el kit en un proyecto real.
+
+### Fixed
+- **Instalación no interactiva rota**: sin TTY, `readline` emitía todas las líneas de golpe y las que llegaban antes de registrarse `rl.question()` se perdían; la promesa nunca resolvía y el proceso **salía a medias con código 0** (instalación parcial reportada como éxito). Ahora `stdin` se drena a una cola —`printf 'y\nn\n' | node install.js` funciona— y al agotarse se usan los defaults. En TTY, `EOF`/Ctrl-D ya no deja la promesa colgada.
+- **`--yes` sin stack detectable** se quedaba esperando en el prompt "Elige stack" y salía en verde. Ahora falla con **código 1** y dice qué hacer (`--stack <category/stack>`).
+- **`.gitignore` ignoraba los ejemplos de env**: el patrón `.env.*` capturaba el `.env.example` que crea el propio instalador (y cualquier `.env.sample` ya versionado). Se añaden las negaciones `!.env.example`, `!.env.sample`, `!.env.template` **después** del patrón. Mismo arreglo en el `.gitignore` del kit.
+- **husky fuera de un repo git**: `maybeSetupHusky` llamaba a `npx husky init` sin comprobar que hubiera repositorio; fallaba dejando las devDeps instaladas. Ahora se omite con el motivo y el remedio (`git init`).
+- **`--dry-run`** no marcaba como simulada la creación de `.env.example`.
+
+### Added
+- **Regla de cadena de suministro (baseline §6.1) + su control ejecutable**: antes de instalar algo (dependencia, skill, agente, plugin, MCP, action) o de correr un comando que toque el sistema, hay que validar que sea seguro. El hook `pre-bash` la aplica en tres niveles: **`deny`** para lo destructivo o fuera del proyecto (`curl | sh`, `sudo`, instalación global, `publish`, rutas del sistema, `~/.ssh`, `dd`, `chmod 777`, `--no-verify`); **`ask`** para lo que mete código de terceros nuevo (deps, `npx`, componentes de claude-code-templates), con la checklist de verificación —typosquatting, publisher, versión pineada, scripts `postinstall`— en el motivo que ve el modelo; y libre para lo que instala del lockfile o manifiesto del propio repo. `settings.json` deniega los mismos casos duros por permisos, por si los hooks están desactivados. 21 tests nuevos, incluido el falso positivo de `docker run --rm`.
+- **Resumen del proyecto** al final de la instalación: proyecto, stack y lenguaje, framework, gestor de paquetes y deps, motores de datos, volumen de código, tests, calidad, entrega (CI/contenedores), monorepo, git y entorno. Los huecos frente a la baseline salen marcados con ⚠️. Es de solo lectura y nunca tumba una instalación correcta.
+- **`validate.cjs`** aplica el check es-MX también a `install.js` (era el texto más leído del kit y estaba fuera de la comprobación).
+
 ## [2.0.1] - 2026-06-11
 
 ### Fixed

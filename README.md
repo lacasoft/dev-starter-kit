@@ -54,10 +54,22 @@ El instalador:
 2. Hace **backup** de tu `.claude/` si existe.
 3. Aplica la **capa base** (`shared/.claude` → `.claude/`): agentes, skills, helpers, settings, comandos.
 4. Scaffolda **`CLAUDE.project.md`** y compone **`./CLAUDE.md`** = `@CLAUDE.project.md` + `@.claude/CLAUDE.base.md` + común + stack (bloque gestionado idempotente).
-5. Actualiza **`.gitignore`** (memoria/runtime/backups/secretos), idempotente.
+5. Actualiza **`.gitignore`** (memoria/runtime/backups/secretos), idempotente. Los ejemplos de env (`.env.example`, `.env.sample`, `.env.template`) quedan **versionados**: van negados después de `.env.*`.
 6. (opcional) Ejecuta **`claude-flow init`** para el enjambre real (primero; la capa va encima sin pisarlo).
 7. (opcional) Instala **agentes/skills externos** curados vía `claude-code-templates` y deps npm por stack.
+   - Los **git hooks** (husky + lint-staged + commitlint) se omiten si el directorio no es un repositorio git: `npx husky init` fallaría y dejaría las devDeps instaladas para nada.
 8. Indica los **plugins de Claude Code** a añadir (shared + por-stack).
+9. Imprime un **resumen del proyecto**: stack y lenguaje, framework, paquetes, motores de datos, volumen de código, tests, calidad, entrega (CI/contenedores), git y entorno. Lo marcado con ⚠️ es un hueco frente a la baseline del kit.
+
+### Sin TTY (CI, agentes, tuberías)
+
+`readline` en modo no-TTY emite todas las líneas de golpe, así que el instalador **drena `stdin` a una cola** y cada pregunta consume una línea; al agotarse usa los defaults:
+
+```bash
+printf 'y\nn\ny\n' | node install.js
+```
+
+Con `--yes` el stack debe ser detectable o venir en `--stack`; si no, sale con **código 1** en vez de instalar a medias.
 
 ## Agentes incluidos (capa base, profundidad experta)
 
@@ -90,6 +102,24 @@ Sin esto, el agente solo conoce lo genérico — es el gap #1 que se ve en proye
 - **Instrucciones**: `./CLAUDE.md` en la raíz (lo único que Claude Code carga automáticamente),
   importa la baseline con `@.claude/CLAUDE.base.md`.
 - **Memoria runtime**: `.claude/memory/` por proyecto (autogitignoreada). Nunca compartida.
+
+## Cadena de suministro (baseline §6.1)
+
+Antes de instalar cualquier cosa (dependencia, skill, agente, plugin, MCP, action de CI) o de correr
+un comando que toque el sistema, hay que validar que sea seguro. No es solo una regla escrita: el hook
+`pre-bash` de `hook-handler.cjs` la hace exigible en tres niveles.
+
+| Nivel | Qué cubre | Ejemplos |
+| --- | --- | --- |
+| `deny` | Destructivo, irreversible o fuera del proyecto | `curl … \| sh` · `sudo` · `npm i -g` · `npm publish` · escribir en `/etc`, `/usr` · `dd of=/dev/…` · `chmod 777` · leer `~/.ssh` · `--no-verify` |
+| `ask` | Mete código de terceros nuevo → lo confirma la persona | `npm install <pkg>` · `pip install <pkg>` · `npx <pkg>` · `claude-code-templates --agent/--skill` |
+| libre | No añade superficie de ataque | `npm ci` · `npm install` (del lockfile) · `pip install -r requirements.txt` · `npx --no-install` |
+
+El motivo que recibe el modelo incluye la checklist a verificar: nombre exacto (typosquatting),
+publisher oficial, **versión pineada** (nunca `@latest`/`@alpha`), scripts `pre/postinstall`, y si algo
+del repo ya lo cubre. Si un comando se bloquea, la respuesta correcta es replantearlo, no esquivar el hook.
+Como defensa en profundidad, `settings.json` deniega además `sudo`, `publish`, `chmod 777` y la lectura
+de `~/.ssh` y `~/.aws` por permisos, para el caso de que los hooks estén desactivados.
 
 ## Enjambre híbrido
 

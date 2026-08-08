@@ -92,6 +92,29 @@ Independientemente de eso, estas reglas de coordinación aplican SIEMPRE:
 - **Nada hardcodeado**: ninguna config, URL, host, puerto, credencial, clave o flag que cambie entre entornos (dev/staging/prod) va escrita en el código. Externalízala a **variables de entorno**, declaradas en `.env` (gitignorado) con un `.env.example` versionado (solo nombres, **nunca valores**). Léelas por una **capa de config única validada al boot** (fail-fast si falta una crítica), no con `process.env.X` (o equivalente) esparcido por el código.
 - Nunca loguear secretos, tokens ni PII.
 
+### 6.1 Cadena de suministro y comandos (no negociable)
+
+Antes de **instalar cualquier cosa** (dependencia, skill, agente, plugin, MCP, action de CI) o de **correr un comando de shell** que no sea de lectura, valida que sea seguro. La duda se resuelve preguntando, no instalando.
+
+Antes de aceptar una instalación, verifica y **di en voz alta** el resultado:
+
+1. **Nombre exacto**: ¿es el paquete oficial y no un typosquat (`crossenv` vs `cross-env`, guiones/plurales cambiados)?
+2. **Procedencia**: publisher conocido, repositorio público, uso real y mantenimiento vivo.
+3. **Versión pineada**: exacta (`1.2.3`), nunca `@latest`, `@alpha`, `@next` ni rango abierto. Lo mismo para actions de CI (pinea por SHA).
+4. **Qué ejecuta al instalarse**: revisa scripts `postinstall`/`preinstall`; ante un script opaco, no instales.
+5. **¿Hace falta?**: si algo en el repo ya lo cubre, no añadas superficie de ataque.
+
+Nunca, sin autorización explícita de la persona en ese mismo momento:
+
+- Ejecutar código descargado de internet directamente en la shell (`curl … | sh`, `wget … | bash`).
+- Elevar privilegios (`sudo`) o instalar en **global** (`-g`, `--global`): un agente toca el proyecto, no el sistema.
+- Escribir en rutas del sistema (`/etc`, `/usr`, `/bin`, `/boot`) ni tocar dispositivos (`dd`, `mkfs`).
+- Leer o copiar credenciales del usuario (`~/.ssh`, `~/.aws`, `~/.gnupg`).
+- Saltarse controles de seguridad (`--no-verify`, desactivar hooks, `chmod 777`).
+- Publicar o desplegar hacia fuera (`npm publish`, deploy a producción).
+
+Esto no es solo documentación: el hook `pre-bash` (`helpers/hook-handler.cjs`) **deniega** lo destructivo y **pide confirmación** ante instalaciones de terceros. Si un comando tuyo se bloquea, la respuesta correcta es replantear el comando, no buscar cómo esquivar el hook.
+
 ## 7. Calidad
 
 - Archivos < 500 LoC; funciones cortas y con una responsabilidad.
