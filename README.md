@@ -188,6 +188,16 @@ respeta. Si claude-flow es dueño del runtime, su `settings.json` no se toca ni 
 Se sigue haciendo backup en `.claude.backup.<timestamp>` antes de cualquier cambio, pero ya no
 deberías necesitarlo. El bloque gestionado de `CLAUDE.md` es idempotente en cualquier caso.
 
+**Proyectos instalados con una versión anterior** no tienen manifiesto, así que la primera
+actualización es conservadora: preserva lo que hay y deja las versiones nuevas como `*.kit-new`.
+Si no habías editado nada, el propio instalador te imprime el comando para aceptarlas de golpe:
+
+```bash
+find .claude -name '*.kit-new' -exec sh -c 'mv "$1" "${1%.kit-new}"' _ {} \;
+```
+
+A partir de ahí ya hay manifiesto y las siguientes actualizaciones son limpias.
+
 ### Cache de npx
 
 `npx github:usuario/repo` **cachea** el paquete: si el kit avanza y reejecutas poco después, puedes

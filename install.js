@@ -338,6 +338,9 @@ function reportLayer(ctx) {
     console.log("     La versión nueva quedó al lado como *.kit-new. Compara y quédate con lo que quieras:");
     ctx.conflicts.slice(0, 10).forEach((f) => console.log(`       diff ${f} ${f}.kit-new`));
     if (ctx.conflicts.length > 10) console.log(`       ...y ${ctx.conflicts.length - 10} más.`);
+    // Caso habitual: no editaste nada, solo faltaba el manifiesto. Que aceptarlo todo sea un comando.
+    console.log("\n     Si no habías editado ninguno y quieres quedarte con las versiones nuevas:");
+    console.log(`       find .claude -name '*.kit-new' -exec sh -c 'mv "$1" "\${1%.kit-new}"' _ {} \\;`);
   }
 }
 
