@@ -46,7 +46,7 @@ node /ruta/al/kit/install.js
 
 Flags: `--stack backend/nestjs` (fuerza stack) · `--yes` (no interactivo, conservador) ·
 `--all` (acepta TODO: flow + externos + deps; combínalo con `--yes` para desatendido total) ·
-`--no-flow` · `--no-external` · `--update`/`--force` (sobrescribe la capa base con la última versión) · `--dry-run` (simula) · `--help`.
+`--no-flow` · `--no-external` · `--update`/`--force` (trae la última capa base sin pisar lo que hayas editado) · `--dry-run` (simula) · `--help`.
 
 El instalador:
 1. **Detecta el stack** (pubspec→flutter, react-native, next, angular, nest, foundry, .csproj→dotnet, spring, django, composer→php, fastapi, react, express).
@@ -158,11 +158,46 @@ Repo **público (MIT)** distribuido por `npx github:` → la rama **`master` deb
 - **CI** (`.github/workflows/ci.yml`): valida + smoke-test del instalador en los 8 stacks (dry-run) en cada PR.
 - **Cómo añadir** agentes, skills, stacks o externos: ver [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Versionado**: SemVer en `package.json` + `CHANGELOG.md`. Fija versiones por tag (`#v1.2.0`).
-- **Actualizar un proyecto** ya instalado: por defecto el instalador es **aditivo** (añade lo nuevo,
-  no pisa lo existente). Para **traer la última versión de agentes/skills/helpers**, ejecútalo con
-  **`--update`** (alias `--force`): sobrescribe la capa base haciendo backup antes, y **conserva tu
-  memoria (`.claude/memory/`) y tu `CLAUDE.project.md`** (y respeta el `settings.json` de claude-flow
-  si está). El bloque gestionado de `CLAUDE.md` es idempotente en cualquier caso.
-  ```bash
-  npx github:lacasoft/dev-starter-kit --update --yes
-  ```
+## Actualizar un proyecto ya instalado
+
+```bash
+npx -y github:lacasoft/dev-starter-kit --update --yes
+```
+
+Por defecto el instalador es **aditivo** (añade lo nuevo, no pisa lo existente). Con **`--update`**
+(alias `--force`) trae además la última versión de agentes, skills y helpers — **sin que pierdas
+nada tuyo**, que es justo lo que un starter kit debe evitar.
+
+Cómo lo consigue: al instalar se escribe `.claude/.kit-manifest.json` con el hash de cada archivo
+*tal como lo dejó el kit*. En la siguiente actualización eso permite distinguir lo intacto de lo
+que tú editaste:
+
+| Situación | Qué pasa |
+| --- | --- |
+| El archivo sigue igual que como lo instaló el kit | Se actualiza ⬆️ |
+| Lo editaste tú y el kit **no** lo cambió | Se respeta, sin ruido |
+| Lo editaste tú **y** el kit lo cambió | Se conserva el tuyo; la versión nueva queda como `*.kit-new` y se te imprime el `diff` a ejecutar |
+| `settings.json` | Se **fusiona**: tus permisos, hooks, `env` y demás claves se mantienen; se añaden los del kit |
+| `.claude/memory/`, `CLAUDE.project.md` | Nunca se tocan |
+
+El `settings.json` merece detalle porque es el que la gente personaliza: la unión de `permissions`
+es sin duplicados, en `hooks` el kit solo reemplaza **sus** entradas (las que apuntan a sus helpers)
+y las tuyas siguen ahí, en `env` ganan tus valores, y si tu `statusLine` apunta a otro script se
+respeta. Si claude-flow es dueño del runtime, su `settings.json` no se toca ni se fusiona.
+
+Se sigue haciendo backup en `.claude.backup.<timestamp>` antes de cualquier cambio, pero ya no
+deberías necesitarlo. El bloque gestionado de `CLAUDE.md` es idempotente en cualquier caso.
+
+### Cache de npx
+
+`npx github:usuario/repo` **cachea** el paquete: si el kit avanza y reejecutas poco después, puedes
+recibir la copia vieja. La solución buena es la misma que exige la baseline §6.1 — **pinear la
+versión** — y de paso hace la instalación reproducible:
+
+```bash
+npx -y github:lacasoft/dev-starter-kit#v2.1.0 --update --yes   # por tag
+npx -y github:lacasoft/dev-starter-kit#52c5332 --update --yes  # por commit
+```
+
+Si aun así sospechas que te sirvió una copia vieja, compara el número de versión del banner del
+instalador con el del `CHANGELOG` y limpia con `npm cache clean --force`.

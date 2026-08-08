@@ -25,6 +25,7 @@
 const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
+const crypto = require("crypto");
 const { execSync } = require("child_process");
 
 const KIT = path.resolve(__dirname);
@@ -57,9 +58,11 @@ Uso:  node install.js [opciones]
   --all                acepta TODO (claude-flow + externos + deps). Usa "--yes --all" para desatendido total
   --no-flow            no ejecuta claude-flow init
   --no-external        no instala componentes externos
-  --update, --force    actualiza la capa base: SOBRESCRIBE agentes/skills/helpers/comandos
-                       del kit con la última versión (conserva memoria y CLAUDE.project.md;
-                       respeta settings.json de claude-flow si está). Hace backup antes.
+  --update, --force    actualiza la capa base sin perder nada tuyo: solo reescribe los archivos
+                       que siguen igual que como los dejó el kit (según .claude/.kit-manifest.json).
+                       Lo que hayas editado se conserva y la versión nueva queda como *.kit-new.
+                       settings.json se FUSIONA (tus permisos, hooks y env se mantienen).
+                       Memoria y CLAUDE.project.md intactos. Hace backup antes.
   --dry-run            simula sin escribir ni ejecutar
   --help, -h           esta ayuda
 
@@ -201,34 +204,140 @@ const STACKS = {
   "blockchain/solidity": 1,
 };
 
-// ---------- copia de archivos ----------
-// overwrite=false (default): solo copia lo que no existe (skip-existing).
-// overwrite=true (--update): sobrescribe lo existente con la versión del kit.
-function copyNew(src, dest, skip, base, overwrite) {
+// ---------- aplicación de la capa base ----------
+// El manifiesto (.claude/.kit-manifest.json) guarda el hash de cada archivo TAL COMO lo instaló
+// el kit. Con eso, en una actualización se distingue "esto no lo ha tocado nadie" de "esto lo
+// editó el usuario", y nunca se pisa trabajo ajeno.
+const MANIFEST_FILE = ".kit-manifest.json";
+const hash = (buf) => crypto.createHash("sha256").update(buf).digest("hex").slice(0, 16);
+
+// Reglas por archivo:
+//  - no existe                                  → se crea
+//  - idéntico al del kit                        → no se toca
+//  - sin --update                               → se conserva el tuyo (skip-existing)
+//  - --update y coincide con el manifiesto      → intacto desde la última instalación: se actualiza
+//  - --update y NO coincide (lo editaste, o no  → se conserva el tuyo y la versión nueva se deja
+//    hay manifiesto de una instalación previa)     al lado como *.kit-new. Nunca se pierde nada.
+function applyLayer(src, dest, ctx, base) {
   base = base || src;
   if (!fs.existsSync(src)) return;
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     const s = path.join(src, entry.name);
     const d = path.join(dest, entry.name);
     const rel = path.relative(base, s).split(path.sep).join("/");
-    if (skip && skip(rel)) {
+    if (ctx.skip && ctx.skip(rel)) {
       console.log(`  ⏭️  omitido (claude-flow lo cubre): ${rel}`);
       continue;
     }
     if (entry.isDirectory()) {
       if (!FLAGS.dryRun) fs.mkdirSync(d, { recursive: true });
-      copyNew(s, d, skip, base, overwrite);
-    } else {
-      const existed = fs.existsSync(d);
-      if (existed && !overwrite) continue; // skip-existing
-      const icon = existed ? "🔁" : "➕";
-      if (FLAGS.dryRun) {
-        console.log(`  (dry-run) ${icon} ${path.relative(CWD, d)}`);
-      } else {
-        fs.copyFileSync(s, d);
-        console.log(`  ${icon} ${path.relative(CWD, d)}`);
-      }
+      applyLayer(s, d, ctx, base);
+      continue;
     }
+    const dry = FLAGS.dryRun ? "(dry-run) " : "";
+    const shown = path.relative(CWD, d);
+    const existed = fs.existsSync(d);
+
+    // settings.json es el archivo que la gente personaliza (permisos, hooks propios, env).
+    // En una actualización se FUSIONA, jamás se reemplaza.
+    if (rel === "settings.json" && existed && FLAGS.update) {
+      const text = JSON.stringify(mergeSettings(s, d), null, 2) + "\n";
+      ctx.next[rel] = hash(Buffer.from(text));
+      if (hash(fs.readFileSync(d)) === ctx.next[rel]) {
+        ctx.same++;
+        continue;
+      }
+      if (!FLAGS.dryRun) fs.writeFileSync(d, text);
+      console.log(`  ${dry}🔀 ${shown} (fusionado: tus permisos, hooks y env se conservan)`);
+      ctx.merged = true;
+      continue;
+    }
+
+    const srcBuf = fs.readFileSync(s);
+    ctx.next[rel] = hash(srcBuf);
+    if (!existed) {
+      if (!FLAGS.dryRun) fs.writeFileSync(d, srcBuf);
+      console.log(`  ${dry}➕ ${shown}`);
+      ctx.added++;
+      continue;
+    }
+    const destHash = hash(fs.readFileSync(d));
+    if (destHash === ctx.next[rel]) {
+      ctx.same++;
+      continue;
+    }
+    if (!FLAGS.update) {
+      ctx.kept++;
+      continue;
+    }
+    if (ctx.prev[rel] === destHash) {
+      if (!FLAGS.dryRun) fs.writeFileSync(d, srcBuf);
+      console.log(`  ${dry}⬆️  ${shown}`);
+      ctx.updated++;
+    } else if (ctx.prev[rel] === ctx.next[rel]) {
+      // Lo editaste tú y el kit NO ha cambiado este archivo: no hay versión nueva que ofrecerte.
+      ctx.userOwned++;
+    } else {
+      if (!FLAGS.dryRun) fs.writeFileSync(`${d}.kit-new`, srcBuf);
+      console.log(`  ${dry}⚠️  ${shown} — lo tuyo se conserva, la versión nueva queda en ${entry.name}.kit-new`);
+      ctx.conflicts.push(shown);
+    }
+  }
+}
+
+// Fusiona el settings.json del kit con el tuyo sin perder nada:
+//  - hooks: el kit solo reemplaza SUS entradas (las que apuntan a sus helpers); las tuyas siguen.
+//  - permisos: unión sin duplicados.
+//  - env: tus valores ganan.  - statusLine: si apunta a otra cosa, se respeta.
+//  - cualquier otra clave que hayas añadido se conserva tal cual.
+const isKitHook = (g) =>
+  Array.isArray(g && g.hooks) && g.hooks.length > 0 && g.hooks.every((h) => /hook-handler\.cjs|auto-memory-hook\.mjs/.test((h && h.command) || ""));
+
+function mergeSettings(kitPath, destPath) {
+  const kit = readJSON(kitPath) || {};
+  const cur = readJSON(destPath) || {};
+  const out = { ...cur };
+  if (kit.$schema) out.$schema = kit.$schema;
+
+  const hooks = { ...(cur.hooks || {}) };
+  for (const ev of new Set([...Object.keys(kit.hooks || {}), ...Object.keys(cur.hooks || {})])) {
+    const tuyos = (cur.hooks[ev] || []).filter((g) => !isKitHook(g));
+    const merged = [...(kit.hooks?.[ev] || []), ...tuyos];
+    if (merged.length) hooks[ev] = merged;
+    else delete hooks[ev];
+  }
+  out.hooks = hooks;
+
+  const perms = { ...(cur.permissions || {}) };
+  for (const k of new Set([...Object.keys(kit.permissions || {}), ...Object.keys(cur.permissions || {})])) {
+    const a = kit.permissions?.[k];
+    const b = cur.permissions?.[k];
+    // allow/deny/ask son listas (se unen); defaultMode y similares son escalares (gana el tuyo).
+    if (Array.isArray(a) || Array.isArray(b)) perms[k] = [...new Set([...(a || []), ...(b || [])])];
+    else perms[k] = b !== undefined ? b : a;
+  }
+  out.permissions = perms;
+
+  out.env = { ...(kit.env || {}), ...(cur.env || {}) };
+  const propia = cur.statusLine && !/statusline\.cjs/.test(JSON.stringify(cur.statusLine));
+  if (!propia && kit.statusLine) out.statusLine = kit.statusLine;
+  return out;
+}
+
+function reportLayer(ctx) {
+  const l = [];
+  if (ctx.added) l.push(`${ctx.added} nuevos`);
+  if (ctx.updated) l.push(`${ctx.updated} actualizados`);
+  if (ctx.same) l.push(`${ctx.same} ya al día`);
+  if (ctx.kept) l.push(`${ctx.kept} conservados (usa --update para actualizarlos)`);
+  if (ctx.userOwned) l.push(`${ctx.userOwned} tuyos respetados (los editaste y el kit no los cambió)`);
+  if (ctx.merged) l.push("settings.json fusionado");
+  if (l.length) console.log(`  📋 ${l.join(" · ")}`);
+  if (ctx.conflicts.length) {
+    console.log(`\n  ⚠️  ${ctx.conflicts.length} archivo(s) con cambios que no instaló el kit: se conservan intactos.`);
+    console.log("     La versión nueva quedó al lado como *.kit-new. Compara y quédate con lo que quieras:");
+    ctx.conflicts.slice(0, 10).forEach((f) => console.log(`       diff ${f} ${f}.kit-new`));
+    if (ctx.conflicts.length > 10) console.log(`       ...y ${ctx.conflicts.length - 10} más.`);
   }
 }
 
@@ -676,20 +785,38 @@ async function main() {
   // 2) capa base (encima de claude-flow si está). En modo flow se omiten nuestros agentes core
   //    (los cubre claude-flow agents/core/*) para no duplicar nombres de agente.
   console.log("\n📄 Aplicando capa base (shared/.claude)...");
+  const manifestPath = path.join(claudeDir, MANIFEST_FILE);
+  const prevManifest = readJSON(manifestPath);
   if (FLAGS.update) {
-    console.log("  🔄 Modo actualización: sobrescribo los archivos del kit con la última versión (memoria y CLAUDE.project.md se conservan).");
+    console.log("  🔄 Modo actualización: se actualizan los archivos del kit que nadie ha tocado.");
+    console.log(
+      prevManifest
+        ? `     Manifiesto de la instalación previa (v${prevManifest.version || "?"}): lo que hayas editado se conserva.`
+        : "     Sin manifiesto previo (instalado por una versión antigua): ante la duda se conserva lo tuyo."
+    );
   }
   if (!FLAGS.dryRun) fs.mkdirSync(claudeDir, { recursive: true });
   // Solo se omiten los 5 agentes core cuyo NOMBRE colisiona con claude-flow (agents/core/*).
   // El resto de agentes top-level (security-engineer, api-security-audit, ...) se conservan;
-  // si claude-flow ya trae uno con el mismo path, copyNew lo respeta por skip-existing.
+  // si claude-flow ya trae uno con el mismo path, applyLayer lo respeta por skip-existing.
   const FLOW_CORE_COLISION = /^agents\/(coder|planner|reviewer|tester|researcher)\.md$/;
-  copyNew(path.join(KIT, "shared", ".claude"), claudeDir, (rel) => {
-    if (flowInstalled && FLOW_CORE_COLISION.test(rel)) return true;
-    // En --update no pisamos settings.json si claude-flow es dueño del runtime.
-    if (FLAGS.update && flowInstalled && rel === "settings.json") return true;
-    return false;
-  }, undefined, FLAGS.update);
+  const layer = {
+    prev: (prevManifest && prevManifest.files) || {},
+    next: {},
+    added: 0, updated: 0, same: 0, kept: 0, userOwned: 0, merged: false, conflicts: [],
+    skip: (rel) => {
+      if (flowInstalled && FLOW_CORE_COLISION.test(rel)) return true;
+      // Si claude-flow es dueño del runtime, su settings.json manda: ni se pisa ni se fusiona.
+      // (Si aún no existe, sí lo escribimos: el proyecto se quedaría sin hooks ni permisos.)
+      if (flowInstalled && rel === "settings.json" && fs.existsSync(path.join(claudeDir, "settings.json"))) return true;
+      return false;
+    },
+  };
+  applyLayer(path.join(KIT, "shared", ".claude"), claudeDir, layer);
+  reportLayer(layer);
+  if (!FLAGS.dryRun) {
+    fs.writeFileSync(manifestPath, JSON.stringify({ version: VERSION, files: layer.next }, null, 2) + "\n");
+  }
 
   // 3) Definición del proyecto + CLAUDE.md raíz (añade/actualiza nuestro bloque; respeta el de claude-flow y anexa)
   console.log("\n📝 Definición del proyecto y CLAUDE.md...");
