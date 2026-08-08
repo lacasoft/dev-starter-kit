@@ -17,3 +17,7 @@ Thumbs.db
 .swarm/
 .env
 .env.*
+# ...pero los ejemplos van versionados (git respeta la última regla que casa)
+!.env.example
+!.env.sample
+!.env.template

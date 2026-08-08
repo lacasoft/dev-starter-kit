@@ -118,6 +118,7 @@ const esmxFiles = [
   ...walk(path.join(ROOT, "shared/.claude/commands"), (p) => p.endsWith(".md")),
   ...walk(path.join(ROOT, "shared/templates"), (p) => p.endsWith(".md")),
   ...walk(path.join(ROOT, "shared/.claude/helpers"), (p) => /\.(cjs|mjs|js)$/.test(p)),
+  path.join(ROOT, "install.js"), // es el texto que más lee el usuario: sale por consola en cada instalación
 ];
 for (const f of esmxFiles) {
   fs.readFileSync(f, "utf8")

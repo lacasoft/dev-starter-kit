@@ -4,9 +4,12 @@
  * Acciones (1ª arg): pre-bash, pre-edit, post-edit, post-bash,
  *                     session-restore, session-end, post-task, notify, compact-manual, compact-auto, status.
  *
- * Diseño: solo bloquea en casos peligrosos explícitos — comandos destructivos (rm -rf /,
- * push --force a rama protegida) con exit 2, y secretos en ediciones con JSON permissionDecision
- * "deny". Nunca falla la sesión por un error interno (el resto sale con exit 0).
+ * Diseño: solo interviene en casos explícitos. Con exit 2, los destructivos clásicos
+ * (rm -rf /, push --force a rama protegida). Con JSON permissionDecision "deny", los secretos
+ * en ediciones y los comandos que violan la baseline §6.1 (curl|sh, sudo, install global,
+ * publish, rutas del sistema, ~/.ssh, --no-verify). Con "ask", lo que mete código de terceros
+ * nuevo (dependencias, npx, componentes de claude-code-templates): lo confirma la persona.
+ * Nunca falla la sesión por un error interno (el resto sale con exit 0).
  */
 const fs = require("fs");
 const path = require("path");
@@ -104,9 +107,60 @@ function denyPreTool(reason) {
   );
   process.exit(0);
 }
+function askPreTool(reason) {
+  process.stdout.write(
+    JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: reason } })
+  );
+  process.exit(0);
+}
 function addContext(text) {
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", additionalContext: text } }));
 }
+
+// --- Cadena de suministro y comandos peligrosos (baseline §6.1) ---
+// "^|[;&|]" ancla al inicio de un comando real: evita que la bandera `--rm` de
+// `docker run --rm` se confunda con el comando `rm`.
+const C = "(?:^|[;&|]\\s*)(?:sudo\\s+)?";
+const BASH_DENY = [
+  [/\b(?:curl|wget)\b[^\n;]*\|\s*(?:sudo\s+)?(?:ba|z|k|da)?sh\b/i, "ejecuta código descargado de internet directamente en la shell"],
+  [new RegExp(`${C}sudo\\b`), "eleva privilegios con sudo: un agente toca el proyecto, no el sistema"],
+  [/\b(?:npm|pnpm|yarn|bun)\s+(?:install|add|i)\b[^\n;]*\s(?:-g|--global)\b/i, "instala en global: modifica el sistema, no el proyecto"],
+  [/\b(?:npm|pnpm|yarn)\s+publish\b/i, "publica un paquete: acción externa e irreversible, la hace una persona"],
+  [/\bpip3?\s+install\b[^\n;]*--break-system-packages\b/i, "rompe los paquetes de Python del sistema"],
+  [new RegExp(`${C}mkfs(?:\\.|\\s)`, "i"), "formatea un dispositivo"],
+  [/\bdd\b[^\n;]*\bof=\/dev\//i, "escribe directamente sobre un dispositivo de bloque"],
+  [/>\s*\/dev\/(?:sd|nvme|hd)/i, "escribe directamente sobre un disco"],
+  [/:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:/, "es una fork bomb"],
+  [new RegExp(`${C}chmod\\s+(?:-[a-zA-Z]+\\s+)*777\\b`), "abre permisos a todo el mundo (chmod 777)"],
+  [new RegExp(`${C}(?:rm|mv|chown|chmod)\\s[^\\n;]*\\s/(?:etc|usr|bin|sbin|boot|lib|var|System)(?:/|\\s|$)`), "modifica rutas críticas del sistema"],
+  [/\b(?:cat|cp|scp|tar|curl|base64)\b[^\n;]*(?:~|\$HOME)\/\.(?:ssh|aws|gnupg)\b/, "lee o copia credenciales del usuario (~/.ssh, ~/.aws, ~/.gnupg)"],
+  [/\bgit\s+(?:commit|push)\b[^\n;]*--no-verify\b/, "salta los hooks de calidad y el escáner de secretos (--no-verify)"],
+];
+
+// Paquetes que un comando de instalación añadiría. null = no es una instalación;
+// [] = instala desde el lockfile/manifiesto del propio repo (seguro, no se pregunta).
+const INSTALL_RE = /(?:^|[;&|]\s*)(?:npm|pnpm|yarn|bun|pip3?|uv|composer|gem|cargo|go)\s+(?:install|add|require|get|i)\b([^\n;&|]*)/i;
+function newPackages(cmd) {
+  const m = cmd.match(INSTALL_RE);
+  if (!m) return null;
+  const tokens = m[1].trim().split(/\s+/);
+  const pkgs = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (!t) continue;
+    if (t.startsWith("-")) {
+      if (/^(-r|--requirement|-c|--constraint|-f|--find-links)$/.test(t)) i++; // la bandera consume su valor
+      continue;
+    }
+    if (/\.(txt|json|toml|lock|cfg)$/i.test(t)) continue; // instala desde un manifiesto del repo
+    pkgs.push(t);
+  }
+  return pkgs;
+}
+
+const CHECKLIST =
+  "Valida antes de aceptar (baseline §6.1): 1) nombre exacto, ¿typosquat? 2) publisher oficial y mantenimiento vivo " +
+  "3) versión pineada, nunca @latest/@alpha 4) scripts pre/postinstall 5) ¿algo del repo ya lo cubre?";
 
 const payload = readPayload();
 const toolInput = payload.tool_input || {};
@@ -123,6 +177,33 @@ switch (action) {
     if (/\bgit\s+push\b.*\s(--force|-f)\b/.test(cmd) && /\b(main|master|develop)\b/.test(cmd)) {
       console.error("❌ Bloqueado: push --force a rama protegida. Usa --force-with-lease y confirma.");
       process.exit(2);
+    }
+
+    // Cadena de suministro: lo destructivo/irreversible se deniega...
+    for (const [re, motivo] of BASH_DENY) {
+      if (re.test(cmd)) {
+        denyPreTool(
+          `Bloqueado por la baseline §6.1: el comando ${motivo}. Si de verdad hace falta, lo corre la persona a mano tras revisarlo; no busques una variante que esquive el hook.`
+        );
+      }
+    }
+
+    // ...y meter código de terceros nuevo se confirma con la persona.
+    const pkgs = newPackages(cmd);
+    if (pkgs && pkgs.length) {
+      const flotantes = pkgs.filter((p) => /@(latest|alpha|beta|next|canary)$/i.test(p) || !/.@[\w.-]+$/.test(p));
+      askPreTool(
+        `Instalación de terceros: ${pkgs.join(", ")}.` +
+          (flotantes.length ? ` ⚠️ Sin versión exacta: ${flotantes.join(", ")}.` : "") +
+          ` ${CHECKLIST}`
+      );
+    }
+    // `npx` ejecuta código remoto; con --no-install solo corre binarios ya presentes en el repo.
+    if (/(?:^|[;&|]\s*)npx\s/.test(cmd) && !/--no-install\b/.test(cmd)) {
+      askPreTool(`\`npx\` ejecuta un paquete descargado de internet. ${CHECKLIST}`);
+    }
+    if (/claude-code-templates[^\n;]*--(?:agent|skill|command|mcp)\b/i.test(cmd)) {
+      askPreTool(`Instala un componente externo dentro de .claude/ (correrá con tus permisos). ${CHECKLIST}`);
     }
     break;
   }

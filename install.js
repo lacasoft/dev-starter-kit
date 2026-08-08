@@ -10,6 +10,7 @@
  *  5. (opcional) Orquesta claude-flow init para el enjambre real (primero; nuestra capa va encima sin pisarlo).
  *  6. (opcional) Instala agentes/skills externos curados (claude-code-templates) y deps npm por stack.
  *  7. Indica los plugins de Claude Code a añadir (shared + por-stack).
+ *  8. Imprime un resumen del proyecto (stack, tests, calidad, entrega, git, entorno) y sus huecos.
  *
  * Flags:
  *   --stack <cat/stack>  fuerza el stack (si no, autodetecta)
@@ -62,6 +63,10 @@ Uso:  node install.js [opciones]
   --dry-run            simula sin escribir ni ejecutar
   --help, -h           esta ayuda
 
+Sin TTY (CI, agentes, tuberías) puedes pipear las respuestas una por línea
+—  printf 'y\\nn\\n' | node install.js  — y al agotarse se usan los defaults.
+Con --yes el stack debe ser detectable o venir en --stack, o sale con error.
+
 Hace: backup de .claude → aplica capa base (agentes/skills/helpers/settings) →
       compone CLAUDE.md (base+común+stack) + CLAUDE.project.md → actualiza .gitignore →
       (opc.) claude-flow init → (opc.) externos → indica plugins de Claude Code.
@@ -69,13 +74,61 @@ Hace: backup de .claude → aplica capa base (agentes/skills/helpers/settings) �
   process.exit(0);
 }
 
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-const ask = (q) => new Promise((r) => rl.question(q, r));
+// ---------- entrada del usuario ----------
+// stdin no siempre es un TTY (CI, `printf 'y\ny\n' | node install.js`, agentes). readline en
+// modo no-TTY emite todas las líneas de golpe: las que llegan antes de que se registre
+// rl.question() se pierden, la promesa nunca resuelve y el proceso se vacía a medias.
+// Por eso: con TTY, readline; sin TTY, se drena stdin a una cola y cada ask() consume una línea.
+const TTY = process.stdin.isTTY === true;
+let rl = null;
+let pipedLines = null;
+
+function closeInput() {
+  if (rl) {
+    rl.close();
+    rl = null;
+  }
+}
+function nextPipedLine() {
+  if (pipedLines === null) {
+    let raw = "";
+    try {
+      raw = fs.readFileSync(0, "utf8");
+    } catch (_) {
+      raw = "";
+    }
+    pipedLines = raw.split(/\r?\n/);
+    while (pipedLines.length && pipedLines[pipedLines.length - 1] === "") pipedLines.pop();
+  }
+  return pipedLines.length ? pipedLines.shift() : null;
+}
+
+// Devuelve null cuando no hay respuesta posible (no interactivo, o stdin agotado/cerrado).
+async function ask(q) {
+  if (FLAGS.yes) return null;
+  if (!TTY) {
+    const line = nextPipedLine();
+    if (line === null) return null;
+    console.log(`${q}${line}`);
+    return line;
+  }
+  if (!rl) rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const r = rl;
+  return new Promise((resolve) => {
+    const onClose = () => resolve(null); // Ctrl-D / EOF: no dejamos la promesa colgada
+    r.once("close", onClose);
+    r.question(q, (a) => {
+      r.off("close", onClose);
+      resolve(a);
+    });
+  });
+}
 async function confirm(q, def = true) {
-  if (FLAGS.yes) return def;
-  const a = (await ask(`${q} ${def ? "(Y/n)" : "(y/N)"}: `)).trim().toLowerCase();
-  if (!a) return def;
-  return a === "y" || a === "s" || a === "yes" || a === "si";
+  const a = await ask(`${q} ${def ? "(Y/n)" : "(y/N)"}: `);
+  if (a === null) return def;
+  const v = a.trim().toLowerCase();
+  if (!v) return def;
+  return v === "y" || v === "s" || v === "yes" || v === "si";
 }
 function run(cmd) {
   console.log(`\n$ ${cmd}`);
@@ -184,24 +237,32 @@ function mcpHasFlow() {
   return !!(m && m.mcpServers && Object.keys(m.mcpServers).some((k) => /flow/i.test(k)));
 }
 
+const GITIGNORE = [".claude/memory/", ".claude-flow/", ".swarm/", ".claude.backup.*", ".env", ".env.*"];
+// Los archivos de ejemplo de env van versionados (la baseline los exige), pero ".env.*" los
+// captura. Git aplica la última regla que casa, así que las negaciones van SIEMPRE después.
+const GITIGNORE_KEEP = ["!.env.example", "!.env.sample", "!.env.template"];
+
 // Asegura que .gitignore cubra memoria/runtime/backups/secretos (idempotente).
 function ensureGitignore() {
   const gi = path.join(CWD, ".gitignore");
-  const needed = [".claude/memory/", ".claude-flow/", ".swarm/", ".claude.backup.*", ".env", ".env.*"];
   const cur = fs.existsSync(gi) ? fs.readFileSync(gi, "utf8") : "";
   const have = new Set(cur.split(/\r?\n/).map((l) => l.trim()));
-  const add = needed.filter((n) => !have.has(n));
-  if (!add.length) {
+  const add = GITIGNORE.filter((n) => !have.has(n));
+  // Si acabamos de añadir ".env.*", reemitimos las negaciones aunque ya existan más arriba:
+  // colocadas antes del patrón no harían nada, y la línea duplicada es inocua.
+  const keep = GITIGNORE_KEEP.filter((n) => !have.has(n) || add.includes(".env.*"));
+  const lines = [...add, ...keep];
+  if (!lines.length) {
     console.log("  ✓ .gitignore ya cubre memoria/runtime/secretos.");
     return;
   }
   if (FLAGS.dryRun) {
-    console.log(`  (dry-run) añadiría a .gitignore: ${add.join(", ")}`);
+    console.log(`  (dry-run) añadiría a .gitignore: ${lines.join(", ")}`);
     return;
   }
-  const block = (cur && !cur.endsWith("\n") ? "\n" : "") + "\n# dev-starter-kit\n" + add.join("\n") + "\n";
+  const block = (cur && !cur.endsWith("\n") ? "\n" : "") + "\n# dev-starter-kit\n" + lines.join("\n") + "\n";
   fs.writeFileSync(gi, cur + block);
-  console.log(`  ➕ .gitignore += ${add.join("  ")}`);
+  console.log(`  ➕ .gitignore += ${lines.join("  ")}`);
 }
 
 // ---------- composición de CLAUDE.md ----------
@@ -280,6 +341,7 @@ async function scaffoldEnvExample() {
   );
   if (!usesEnv) return;
   if (!(await confirm("¿Crear .env.example (placeholders de las env vars)?", true))) return;
+  const dry = FLAGS.dryRun ? "(dry-run) " : "";
   const body = [
     "# .env.example — variables de entorno del proyecto (SIN valores reales).",
     "# Cópialo a .env (gitignored) y rellena. Documenta aquí cada variable nueva.",
@@ -291,7 +353,17 @@ async function scaffoldEnvExample() {
     "",
   ].join("\n");
   if (!FLAGS.dryRun) fs.writeFileSync(dest, body);
-  console.log("  ➕ ./.env.example (rellénalo y añade tus variables)");
+  console.log(`  ${dry}➕ ./.env.example (rellénalo y añade tus variables)`);
+}
+
+function isGitRepo() {
+  if (fs.existsSync(path.join(CWD, ".git"))) return true;
+  try {
+    execSync("git rev-parse --is-inside-work-tree", { cwd: CWD, stdio: "ignore" });
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 // Ofrece tooling de git que la baseline exige (husky + lint-staged + commitlint + plantilla de PR).
@@ -305,6 +377,11 @@ async function maybeSetupHusky() {
     return;
   }
   console.log("\n🪝 Git hooks: husky + lint-staged + commitlint + plantilla de PR (la baseline los exige).");
+  if (!isGitRepo()) {
+    // `npx husky init` falla fuera de un repo, y las devDeps quedarían instaladas para nada.
+    console.log("  → Omitido: esto no es un repositorio git. Ejecuta `git init` y relanza el instalador.");
+    return;
+  }
   if (!(await confirm("¿Configurarlos ahora? (instala devDeps)", FLAGS.all))) {
     console.log("  → Omitido. Hazlo luego o la regla aplica solo 'si el repo los tiene'.");
     return;
@@ -329,6 +406,219 @@ async function maybeSetupHusky() {
   }
 }
 
+// ---------- resumen del proyecto ----------
+// Radiografía barata y de solo lectura del repo destino: lo que el kit ha podido inferir.
+// No sustituye a CLAUDE.project.md (el contexto de negocio lo pones tú), pero da el mapa.
+const SKIP_DIRS = new Set([
+  "node_modules", "dist", "build", "out", "coverage", "vendor", "target", "bin", "obj",
+  "venv", "__pycache__", "Pods", "artifacts", "cache", "tmp", "logs",
+]);
+const CODE_EXT = {
+  "backend/nestjs": [".ts"],
+  "backend/express": [".ts", ".js", ".mjs"],
+  "backend/fastapi": [".py"],
+  "backend/django": [".py"],
+  "backend/php": [".php"],
+  "backend/spring": [".java", ".kt"],
+  "backend/dotnet": [".cs"],
+  "frontend/angular": [".ts", ".html", ".scss"],
+  "frontend/react": [".ts", ".tsx", ".js", ".jsx"],
+  "frontend/nextjs": [".ts", ".tsx", ".js", ".jsx"],
+  "mobile/react-native": [".ts", ".tsx", ".js", ".jsx"],
+  "mobile/flutter": [".dart"],
+  "blockchain/solidity": [".sol"],
+};
+const FRAMEWORK_DEP = {
+  "backend/nestjs": "@nestjs/core",
+  "backend/express": "express",
+  "frontend/nextjs": "next",
+  "frontend/react": "react",
+  "frontend/angular": "@angular/core",
+  "mobile/react-native": "react-native",
+};
+const IS_TEST = /(^test_|_test\.|\.(test|spec)\.|Tests?\.(cs|java|kt)$)/i;
+const ENV_FILES = [".env.example", ".env.sample", ".env.template"];
+
+function sh(cmd) {
+  try {
+    return execSync(cmd, { cwd: CWD, stdio: ["ignore", "pipe", "ignore"] }).toString().trim() || null;
+  } catch (_) {
+    return null;
+  }
+}
+function walkCode(exts, limit = 5000) {
+  const out = { files: 0, lines: 0, tests: 0, truncated: false };
+  const queue = [CWD];
+  while (queue.length) {
+    let entries = [];
+    const dir = queue.shift();
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_) {
+      continue;
+    }
+    for (const e of entries) {
+      if (e.isDirectory()) {
+        if (e.name.startsWith(".") || SKIP_DIRS.has(e.name)) continue;
+        queue.push(path.join(dir, e.name));
+      } else if (exts.includes(path.extname(e.name))) {
+        if (out.files >= limit) {
+          out.truncated = true;
+          continue;
+        }
+        out.files++;
+        if (IS_TEST.test(e.name)) out.tests++;
+        try {
+          const p = path.join(dir, e.name);
+          if (fs.statSync(p).size <= 512 * 1024) out.lines += fs.readFileSync(p, "utf8").split("\n").length;
+        } catch (_) {}
+      }
+    }
+  }
+  return out;
+}
+function projectIdentity() {
+  const pkg = readJSON(path.join(CWD, "package.json"));
+  if (pkg?.name) return `${pkg.name}${pkg.version ? ` v${pkg.version}` : ""}`;
+  const composer = readJSON(path.join(CWD, "composer.json"));
+  if (composer?.name) return composer.name;
+  for (const [f, re] of [["pubspec.yaml", /^name:\s*(\S+)/m], ["pyproject.toml", /^name\s*=\s*["']([^"']+)/m]]) {
+    const m = readMaybe(path.join(CWD, f)).match(re);
+    if (m) return m[1];
+  }
+  return path.basename(CWD);
+}
+function packageManager() {
+  const locks = [
+    ["pnpm-lock.yaml", "pnpm"], ["yarn.lock", "yarn"], ["bun.lockb", "bun"], ["package-lock.json", "npm"],
+    ["poetry.lock", "poetry"], ["uv.lock", "uv"], ["Pipfile.lock", "pipenv"], ["composer.lock", "composer"],
+    ["Gemfile.lock", "bundler"], ["pubspec.lock", "pub"], ["go.sum", "go"], ["Cargo.lock", "cargo"],
+  ];
+  return locks.filter(([f]) => fs.existsSync(path.join(CWD, f))).map(([, n]) => n);
+}
+// Variables realmente declaradas (no las comentadas de una plantilla vacía).
+function envVars(file) {
+  return readMaybe(path.join(CWD, file))
+    .split(/\r?\n/)
+    .map((l) => (l.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/) || [])[1])
+    .filter(Boolean);
+}
+const plural = (n, sing, pl) => `${n} ${n === 1 ? sing : pl}`;
+function summarizeProject(stackId) {
+  const pkg = readJSON(path.join(CWD, "package.json")) || {};
+  const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+  const dep = (n) => (deps[n] ? String(deps[n]).replace(/^[\^~>=<\s]+/, "") : null);
+  const present = (list) => list.filter((n) => deps[n]);
+  const rows = [];
+  const add = (label, value) => { if (value) rows.push([label, value]); };
+
+  add("Proyecto", projectIdentity());
+
+  const lang = [];
+  if (fs.existsSync(path.join(CWD, "tsconfig.json"))) {
+    lang.push(/"strict"\s*:\s*true/.test(readMaybe(path.join(CWD, "tsconfig.json"))) ? "TypeScript (strict)" : "TypeScript");
+  }
+  if (pkg.engines?.node) lang.push(`Node ${pkg.engines.node}`);
+  add("Stack", [stackId, ...lang].join(" · "));
+
+  const fw = FRAMEWORK_DEP[stackId] && dep(FRAMEWORK_DEP[stackId]);
+  add("Framework", fw ? `${FRAMEWORK_DEP[stackId]} ${fw}` : null);
+
+  const pm = packageManager();
+  const depCount = Object.keys(pkg.dependencies || {}).length;
+  const devCount = Object.keys(pkg.devDependencies || {}).length;
+  add("Paquetes", [pm.join(" + ") || null, depCount || devCount ? `${depCount} deps · ${devCount} devDeps` : null].filter(Boolean).join(" · "));
+
+  const data = present(["@prisma/client", "prisma", "typeorm", "drizzle-orm", "mongoose", "sequelize", "knex", "@mikro-orm/core"]);
+  // Motores: se buscan en las deps y en las env DECLARADAS, nunca en los comentarios de una
+  // plantilla (si no, el .env.example que crea el propio kit inventaría Redis/Postgres).
+  const ENGINES = [["postgres", /postgres|\bpg\b/i], ["mysql", /mysql|mariadb/i], ["mongodb", /mongo/i], ["redis", /redis/i], ["sqlite", /sqlite/i]];
+  const haystack = [Object.keys(deps).join(" "), ...ENV_FILES.flatMap(envVars)].join(" ");
+  const engines = ENGINES.filter(([, re]) => re.test(haystack)).map(([n]) => n);
+  add("Datos", [...data, ...engines].join(" · "));
+
+  const code = walkCode(CODE_EXT[stackId] || [".ts", ".tsx", ".js", ".py", ".php", ".java", ".cs", ".dart", ".sol"]);
+  add("Código", code.files ? `${plural(code.files, "archivo", "archivos")}${code.truncated ? "+" : ""} · ~${code.lines.toLocaleString("es")} líneas` : null);
+
+
+  const runner = present(["jest", "vitest", "mocha", "@playwright/test", "cypress", "supertest"]);
+  const pyTest = /pytest/i.test(readMaybe(path.join(CWD, "requirements.txt")) + readMaybe(path.join(CWD, "pyproject.toml")));
+  add("Tests", [
+    runner.join(" · ") || (pyTest ? "pytest" : null),
+    code.tests ? plural(code.tests, "archivo de test", "archivos de test") : (code.files ? "⚠️ sin archivos de test detectados" : null),
+  ].filter(Boolean).join(" · "));
+
+  const quality = [];
+  if (hasFile(".eslintrc", ".eslintrc.js", ".eslintrc.json", ".eslintrc.cjs", "eslint.config.js", "eslint.config.mjs") || deps.eslint) quality.push("eslint");
+  if (hasFile(".prettierrc", ".prettierrc.json", ".prettierrc.js", "prettier.config.js") || deps.prettier) quality.push("prettier");
+  if (hasFile("ruff.toml", ".ruff.toml") || /\[tool\.(ruff|black)\]/.test(readMaybe(path.join(CWD, "pyproject.toml")))) quality.push("ruff/black");
+  if (hasFile("analysis_options.yaml")) quality.push("dart analyze");
+  if (hasFile("phpstan.neon", "phpstan.neon.dist", "pint.json")) quality.push("phpstan/pint");
+  if (hasFile(".editorconfig")) quality.push("editorconfig");
+  // husky es tooling de Node: en Python/Flutter/PHP el equivalente es pre-commit o lefthook.
+  const hooks = fs.existsSync(path.join(CWD, ".husky"))
+    ? "husky"
+    : hasFile(".pre-commit-config.yaml")
+      ? "pre-commit"
+      : hasFile("lefthook.yml", "lefthook.yaml")
+        ? "lefthook"
+        : null;
+  quality.push(hooks || "⚠️ sin hooks de git");
+  add("Calidad", quality.join(" · "));
+
+  const delivery = [];
+  if (hasFile("Dockerfile")) delivery.push("Dockerfile");
+  if (hasFile("docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml")) delivery.push("docker-compose");
+  try {
+    const wf = fs.readdirSync(path.join(CWD, ".github", "workflows")).filter((f) => /\.ya?ml$/.test(f)).length;
+    if (wf) delivery.push(`GitHub Actions (${wf})`);
+  } catch (_) {}
+  if (hasFile(".gitlab-ci.yml")) delivery.push("GitLab CI");
+  if (hasFile("Makefile")) delivery.push("Makefile");
+  add("Entrega", delivery.join(" · ") || "⚠️ sin CI ni contenedores");
+
+  const mono = [];
+  if (pkg.workspaces) mono.push("npm/yarn workspaces");
+  if (hasFile("pnpm-workspace.yaml")) mono.push("pnpm workspaces");
+  for (const [f, n] of [["turbo.json", "turborepo"], ["nx.json", "nx"], ["lerna.json", "lerna"]]) if (hasFile(f)) mono.push(n);
+  add("Monorepo", mono.join(" · "));
+
+  if (isGitRepo()) {
+    const branch = sh("git rev-parse --abbrev-ref HEAD");
+    const commits = sh("git rev-list --count HEAD");
+    const dirty = (sh("git status --porcelain") || "").split("\n").filter(Boolean).length;
+    const remote = (sh("git config --get remote.origin.url") || "").replace(/^git@([^:]+):/, "$1/").replace(/^https?:\/\//, "").replace(/\.git$/, "");
+    add("Git", [
+      branch,
+      commits ? plural(Number(commits), "commit", "commits") : null,
+      remote || "sin remoto",
+      dirty ? plural(dirty, "cambio sin commitear", "cambios sin commitear") : "limpio",
+    ].filter(Boolean).join(" · "));
+  } else {
+    add("Git", "⚠️ no es un repositorio git");
+  }
+
+  const envPresent = ENV_FILES.filter((f) => fs.existsSync(path.join(CWD, f)));
+  add("Entorno", [
+    ...(envPresent.length
+      ? envPresent.map((f) => {
+          const n = envVars(f).length;
+          return `${f} (${n ? plural(n, "variable", "variables") : "plantilla vacía"})`;
+        })
+      : ["⚠️ sin archivo de ejemplo de env"]),
+    fs.existsSync(path.join(CWD, ".env")) ? ".env local presente" : null,
+  ].filter(Boolean).join(" · "));
+
+  const scripts = ["dev", "start", "build", "test", "lint"].filter((s) => pkg.scripts?.[s]);
+  add("Scripts", scripts.length ? scripts.map((s) => `${pm[0] === "npm" || !pm.length ? "npm run " : pm[0] + " "}${s}`).join(" · ") : null);
+
+  console.log("\n📊 Resumen del proyecto");
+  const width = Math.max(...rows.map(([l]) => l.length));
+  for (const [label, value] of rows) console.log(`   ${label.padEnd(width)}  ${value}`);
+  if (rows.some(([, v]) => v.includes("⚠️"))) console.log("\n   ⚠️ = hueco frente a la baseline del kit. Revísalo antes de dar el proyecto por listo.");
+  console.log("   Rellena CLAUDE.project.md con lo que esto no puede inferir: dominio, decisiones y límites.");
+}
+
 // ---------- main ----------
 async function main() {
   const VERSION = (readJSON(path.join(KIT, "package.json")) || {}).version || "?";
@@ -347,10 +637,17 @@ async function main() {
   }
   if (!stackId) {
     console.log("\nStacks disponibles:\n  " + Object.keys(STACKS).join("\n  "));
-    stackId = (await ask("\nElige stack (category/stack): ")).trim();
+    const answer = await ask("\nElige stack (category/stack): ");
+    stackId = (answer || "").trim();
     if (!STACKS[stackId]) {
-      console.error("❌ Stack inválido.");
-      return rl.close();
+      console.error(
+        answer === null
+          ? "\n❌ No se pudo detectar el stack y no hay entrada interactiva disponible.\n   Relanza indicándolo: node install.js --stack <category/stack>"
+          : `\n❌ Stack inválido: "${stackId}"`
+      );
+      closeInput();
+      process.exitCode = 1; // no salgas en verde a medias
+      return;
     }
   }
 
@@ -456,11 +753,17 @@ async function main() {
   console.log("   • CLAUDE.md compuesto (project + base + común + stack) en la raíz");
   console.log("   • Memoria por-proyecto en .claude/memory/ y .gitignore actualizado");
   if (!flowInstalled) console.log("   • Sin claude-flow: coordinación nativa (ejecútalo luego con: " + (manifest.claudeFlow?.initCommand || "claude-flow init") + ")");
-  rl.close();
+
+  try {
+    summarizeProject(stackId);
+  } catch (e) {
+    console.error(`\n⚠️  No se pudo generar el resumen del proyecto: ${e.message}`); // nunca tumbes una instalación correcta
+  }
+  closeInput();
 }
 
 main().catch((e) => {
   console.error(e);
-  rl.close();
+  closeInput();
   process.exit(1);
 });
