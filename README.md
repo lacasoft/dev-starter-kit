@@ -214,6 +214,10 @@ instalador con el del `CHANGELOG` y limpia con `npm cache clean --force`.
 Repo **público (MIT)** distribuido por `npx github:` → la rama **`master` debe estar siempre verde**.
 
 - **Validar** antes de commitear: `npm run validate` (frontmatter, JSON, sintaxis, es-MX; zero-dep).
+  Comprueba también que **este README no mienta**: los conteos de agentes, skills y stacks, la lista
+  de helpers del árbol, los stacks por categoría, el número de descartados y que los ejemplos
+  pineados (`#vX.Y.Z`) apunten a la versión de `package.json`. Si reescribes una de esas frases,
+  actualiza el patrón en `scripts/validate.cjs` — la comprobación no debe perderse en silencio.
 - **Tests**: `npm test` (`node:test`, sin dependencias) — guards del hook-handler y `--update`.
 - **CI** (`.github/workflows/ci.yml`): valida + tests + smoke-test del instalador en los **13 stacks**
   (dry-run) en cada PR. La lista sale de `scripts/stacks.cjs`, que la deriva de `install.js`.

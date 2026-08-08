@@ -2,6 +2,11 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](https://semver.org/).
 
+## [No publicado]
+
+### Added
+- **`validate.cjs` verifica que el README no mienta.** El README se había desviado en silencio: listaba helpers borrados dos releases antes, 9 de los 13 stacks, "los 8 stacks" del CI y ejemplos pineados a `#v1.2.0`. Ahora se comprueban contra el repo los conteos de agentes, skills y stacks (los del árbol y los del CI), la lista de helpers, los stacks por categoría, el número de componentes descartados, y que todo ejemplo `#vX.Y.Z` apunte a la versión de `package.json`. Si una de esas frases desaparece, falla explícitamente en vez de dejar de comprobar: 38 → 49 comprobaciones.
+
 ## [2.1.0] - 2026-08-08
 
 Correcciones salidas de instalar el kit en un proyecto real, más la regla de cadena de suministro y el resumen del proyecto.

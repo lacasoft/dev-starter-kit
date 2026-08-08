@@ -47,10 +47,11 @@ const skills = walk(path.join(ROOT, "shared/.claude/skills"), (p) => p.endsWith(
 [...agents, ...skills].forEach(checkFrontmatter);
 
 // --- JSON ---
-for (const j of ["components.json", "shared/.claude/settings.json"]) {
+const parsed = {};
+for (const j of ["components.json", "shared/.claude/settings.json", "package.json"]) {
   const p = path.join(ROOT, j);
   try {
-    JSON.parse(fs.readFileSync(p, "utf8"));
+    parsed[j] = JSON.parse(fs.readFileSync(p, "utf8"));
     ok.push(j);
   } catch (e) {
     errors.push(`${j}: JSON inválido → ${e.message}`);
@@ -127,6 +128,81 @@ for (const f of esmxFiles) {
       const m = ln.match(ESMX);
       if (m) errors.push(`${rel(f)}:${i + 1}: peninsularismo "${m[1]}" — usa es-MX (ver CONTRIBUTING.md)`);
     });
+}
+
+// --- README ↔ realidad ---
+// El README se desvía en silencio si nadie lo mira: llegó a listar helpers borrados dos releases
+// antes, 9 de 13 stacks y "los 8 stacks" del CI. Aquí lo que afirma se comprueba contra el repo.
+const README = path.join(ROOT, "README.md");
+const readme = fs.existsSync(README) ? fs.readFileSync(README, "utf8") : "";
+if (!readme) errors.push("README.md: no existe");
+
+// Si reescribes una de estas frases, actualiza el patrón aquí: la comprobación no debe perderse
+// en silencio, que es justo como el README se desactualizó.
+function claim(label, re, esperado) {
+  if (!readme) return;
+  const m = readme.match(re);
+  if (!m) return errors.push(`README.md: no encuentro la afirmación sobre ${label} (patrón ${re}); si la reescribiste, actualiza scripts/validate.cjs`);
+  const dicho = Number(m[1]);
+  if (dicho !== esperado) errors.push(`README.md: dice ${dicho} ${label}, pero el repo tiene ${esperado}`);
+  else ok.push(`README: ${label} = ${esperado}`);
+}
+claim("agentes", /(\d+)\s+agentes/, agents.length);
+claim("skills", /(\d+)\s+skills/, skills.length);
+claim("stacks seleccionables", /(\d+)\s+stacks seleccionables/, declIds.size);
+claim("stacks cubiertos por el CI", /\*\*(\d+) stacks\*\*/, declIds.size);
+if (parsed["components.json"]) {
+  claim("componentes descartados", /los\s+(\d+)\s+con su motivo/, Object.keys(parsed["components.json"].discarded || {}).length);
+}
+
+// Lista de helpers del árbol: debe coincidir exactamente con los archivos reales.
+if (readme) {
+  const reales = fs
+    .readdirSync(path.join(ROOT, "shared/.claude/helpers"))
+    .map((f) => f.replace(/\.(cjs|mjs|js)$/, ""))
+    .sort();
+  const m = readme.match(/helpers\/\s+#\s*(.+)/);
+  if (!m) errors.push("README.md: no encuentro la línea de helpers en el árbol de estructura");
+  else {
+    const dichos = m[1].split(",").map((s) => s.trim()).filter(Boolean).sort();
+    if (dichos.join("|") !== reales.join("|")) {
+      errors.push(`README.md: el árbol lista helpers [${dichos.join(", ")}] y el repo tiene [${reales.join(", ")}]`);
+    } else ok.push("README: lista de helpers");
+  }
+}
+
+// Stacks por categoría del árbol: backend/{...}, frontend/{...}, mobile/{...}.
+if (readme) {
+  for (const cat of fs.readdirSync(path.join(ROOT, "stacks"), { withFileTypes: true }).filter((e) => e.isDirectory())) {
+    const reales = fs
+      .readdirSync(path.join(ROOT, "stacks", cat.name), { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort();
+    const m = readme.match(new RegExp(`${cat.name}/\\{([^}]+)\\}`));
+    if (!m) {
+      // Categorías de un solo stack se escriben sin llaves (blockchain/solidity): basta con que aparezcan.
+      if (reales.some((s) => !readme.includes(`${cat.name}/${s}`))) {
+        errors.push(`README.md: el árbol no menciona todos los stacks de ${cat.name} (${reales.join(", ")})`);
+      }
+      continue;
+    }
+    const dichos = m[1].split(",").map((s) => s.trim()).filter(Boolean).sort();
+    if (dichos.join("|") !== reales.join("|")) {
+      errors.push(`README.md: el árbol lista ${cat.name}/{${dichos.join(",")}} y el repo tiene {${reales.join(",")}}`);
+    } else ok.push(`README: stacks de ${cat.name}`);
+  }
+}
+
+// Ejemplos de instalación pineados: deben apuntar a la versión actual, o mandas a la gente a una vieja.
+if (readme && parsed["package.json"]) {
+  const pins = [...readme.matchAll(/dev-starter-kit#v(\d+\.\d+\.\d+)/g)].map((m) => m[1]);
+  if (!pins.length) errors.push("README.md: no hay ningún ejemplo de instalación pineado por tag (#vX.Y.Z)");
+  for (const p of new Set(pins)) {
+    if (p !== parsed["package.json"].version) {
+      errors.push(`README.md: ejemplo pineado a #v${p}, pero package.json está en ${parsed["package.json"].version}`);
+    } else ok.push(`README: pin #v${p}`);
+  }
 }
 
 // --- reporte ---
