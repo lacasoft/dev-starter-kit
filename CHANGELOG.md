@@ -2,9 +2,9 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](https://semver.org/).
 
-## [No publicado]
+## [2.1.0] - 2026-08-08
 
-Correcciones salidas de instalar el kit en un proyecto real.
+Correcciones salidas de instalar el kit en un proyecto real, más la regla de cadena de suministro y el resumen del proyecto.
 
 ### Fixed
 - **Instalación no interactiva rota**: sin TTY, `readline` emitía todas las líneas de golpe y las que llegaban antes de registrarse `rl.question()` se perdían; la promesa nunca resolvía y el proceso **salía a medias con código 0** (instalación parcial reportada como éxito). Ahora `stdin` se drena a una cola —`printf 'y\nn\n' | node install.js` funciona— y al agotarse se usan los defaults. En TTY, `EOF`/Ctrl-D ya no deja la promesa colgada.
@@ -18,6 +18,13 @@ Correcciones salidas de instalar el kit en un proyecto real.
 - **Regla de cadena de suministro (baseline §6.1) + su control ejecutable**: antes de instalar algo (dependencia, skill, agente, plugin, MCP, action) o de correr un comando que toque el sistema, hay que validar que sea seguro. El hook `pre-bash` la aplica en tres niveles: **`deny`** para lo destructivo o fuera del proyecto (`curl | sh`, `sudo`, instalación global, `publish`, rutas del sistema, `~/.ssh`, `dd`, `chmod 777`, `--no-verify`); **`ask`** para lo que mete código de terceros nuevo (deps, `npx`, componentes de claude-code-templates), con la checklist de verificación —typosquatting, publisher, versión pineada, scripts `postinstall`— en el motivo que ve el modelo; y libre para lo que instala del lockfile o manifiesto del propio repo. `settings.json` deniega los mismos casos duros por permisos, por si los hooks están desactivados. 21 tests nuevos, incluido el falso positivo de `docker run --rm`.
 - **Resumen del proyecto** al final de la instalación: proyecto, stack y lenguaje, framework, gestor de paquetes y deps, motores de datos, volumen de código, tests, calidad, entrega (CI/contenedores), monorepo, git y entorno. Los huecos frente a la baseline salen marcados con ⚠️. Es de solo lectura y nunca tumba una instalación correcta.
 - **`validate.cjs`** aplica el check es-MX también a `install.js` (era el texto más leído del kit y estaba fuera de la comprobación).
+
+### Changed
+- **Instalar dependencias ahora pide confirmación.** La decisión `ask` del hook `pre-bash` gana sobre el allowlist de `permissions`, así que `npm install <pkg>`, `pip install <pkg>` y `npx <pkg>` preguntan aunque estuvieran permitidos. Es intencional —esa confirmación *es* la validación de §6.1— pero conviene saberlo si tenías flujos desatendidos: instalar desde el lockfile (`npm ci`, `npm install` sin argumentos, `pip install -r`) y `npx --no-install` siguen sin preguntar.
+
+### Notas de actualización
+- Ejecuta `npx -y github:lacasoft/dev-starter-kit#v2.1.0 --update --yes`. Fija la versión por tag: `npx` cachea las specs de GitHub y sin pinear puedes recibir una copia vieja.
+- Los proyectos instalados con 2.0.x **no tienen manifiesto**, así que esta primera actualización es conservadora: preserva lo que hay y deja las versiones nuevas como `*.kit-new`. Si no habías editado nada, el instalador imprime el comando para aceptarlas todas de golpe. A partir de ahí las actualizaciones son limpias.
 
 ## [2.0.1] - 2026-06-11
 
