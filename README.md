@@ -50,7 +50,9 @@ Flags: `--stack backend/nestjs` (fuerza stack) · `--yes` (no interactivo, conse
 `--no-flow` · `--no-external` · `--update`/`--force` (trae la última capa base sin pisar lo que hayas editado) · `--dry-run` (simula) · `--help`.
 
 El instalador:
-1. **Detecta el stack** (pubspec→flutter, react-native, next, angular, nest, foundry, .csproj→dotnet, spring, django, composer→php, fastapi, react, express).
+1. **Detecta el stack** (pubspec→flutter, react-native, next, angular, nest, foundry, `.csproj`/`.sln`→dotnet, Spring, django, composer→php, fastapi, react, express).
+   - **Java/Kotlin**: se reconoce Spring por sus señales (`spring-boot`, `org.springframework`, el plugin de Gradle o `io.spring.dependency-management`) en `pom.xml`, `build.gradle(.kts)` y `settings.gradle(.kts)`. Un proyecto Java **sin** Spring no se fuerza al overlay de Spring: el instalador lo dice y te deja elegir.
+   - Si la detección falla, imprime **qué vio** en el directorio en vez de rendirse sin explicación.
    - En un proyecto **fullstack con un solo `package.json`** (p. ej. express + react juntos) gana el **frontend**; si el repo es principalmente API, fuerza con `--stack backend/express`.
 2. Hace **backup** de tu `.claude/` si existe.
 3. Aplica la **capa base** (`shared/.claude` → `.claude/`): agentes, skills, helpers, settings, comandos.
