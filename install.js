@@ -170,6 +170,29 @@ function dirHasExt(re) {
     return false;
   }
 }
+// Archivos de build de Java/Kotlin. Un proyecto Java NO es necesariamente Spring.
+const JAVA_BUILD_FILES = ["pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts"];
+const javaBuildFiles = () => JAVA_BUILD_FILES.filter((f) => fs.existsSync(path.join(CWD, f)));
+
+// Spring se declara de muchas formas: starters, BOM, plugin de Gradle, imports del framework.
+// Antes solo se miraba /spring-boot/ en pom.xml y /spring/ en build.gradle, así que un Gradle
+// con Kotlin DSL o un proyecto Spring sin la palabra exacta se quedaba sin detectar.
+const SPRING_SIGNALS = /spring-boot|spring-framework|org\.springframework|io\.spring\.dependency-management/i;
+const isSpringProject = () => javaBuildFiles().some((f) => fileHas(path.join(CWD, f), SPRING_SIGNALS));
+
+// Qué se vio en el directorio cuando la detección falla. Sin esto el usuario solo recibe
+// "no se pudo detectar" y tiene que adivinar por qué.
+function detectionHint() {
+  const java = javaBuildFiles();
+  if (java.length) {
+    return `Vi ${java.join(", ")}: es un proyecto Java/Kotlin, pero no encontré señales de Spring.\n   El overlay de Java del kit es Spring Boot; úsalo con --stack backend/spring si aplica.\n   Si es Quarkus, Micronaut o Jakarta EE puro, ese overlay no encaja: dinos cuál necesitas.`;
+  }
+  if (fs.existsSync(path.join(CWD, "go.mod"))) return "Vi go.mod: aún no hay overlay de Go en el kit.";
+  if (fs.existsSync(path.join(CWD, "Cargo.toml"))) return "Vi Cargo.toml: aún no hay overlay de Rust en el kit.";
+  if (fs.existsSync(path.join(CWD, "package.json"))) return "Vi package.json pero ningún framework reconocido en sus dependencias.";
+  return "No vi ningún archivo de proyecto reconocible en este directorio.";
+}
+
 function detectStack() {
   const pkg = readJSON(path.join(CWD, "package.json")) || {};
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
@@ -185,7 +208,7 @@ function detectStack() {
   if (fs.existsSync(path.join(CWD, "nest-cli.json")) || deps["@nestjs/core"]) return "backend/nestjs";
   if (fs.existsSync(path.join(CWD, "foundry.toml"))) return "blockchain/solidity";
   if (dirHasExt(/\.(csproj|sln)$/)) return "backend/dotnet";
-  if (fileHas(path.join(CWD, "pom.xml"), /spring-boot/i) || fileHas(path.join(CWD, "build.gradle"), /spring/i) || fileHas(path.join(CWD, "build.gradle.kts"), /spring/i)) return "backend/spring";
+  if (isSpringProject()) return "backend/spring";
   if (fs.existsSync(path.join(CWD, "manage.py")) || fileHas(req, /(^|\n)\s*django\b/i) || fileHas(pyproj, /\bdjango\b/i)) return "backend/django";
   if (fs.existsSync(path.join(CWD, "composer.json"))) return "backend/php";
   if (fileHas(req, /fastapi/i) || fileHas(pyproj, /fastapi/i)) return "backend/fastapi";
@@ -748,6 +771,7 @@ async function main() {
     if (!(await confirm("¿Es correcto?", true))) stackId = null;
   }
   if (!stackId) {
+    if (!FLAGS.stack) console.log(`\n🔍 ${detectionHint()}`);
     console.log("\nStacks disponibles:\n  " + Object.keys(STACKS).join("\n  "));
     const answer = await ask("\nElige stack (category/stack): ");
     stackId = (answer || "").trim();
