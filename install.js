@@ -160,28 +160,63 @@ function fileHas(p, re) {
     return false;
   }
 }
-function hasFile(...names) {
-  return names.some((n) => fs.existsSync(path.join(CWD, n)));
+function hasFileIn(dir, ...names) {
+  return names.some((n) => fs.existsSync(path.join(dir, n)));
 }
-function dirHasExt(re) {
+const hasFile = (...names) => hasFileIn(CWD, ...names);
+function dirHasExt(re, dir = CWD) {
   try {
-    return fs.readdirSync(CWD).some((f) => re.test(f));
+    return fs.readdirSync(dir).some((f) => re.test(f));
   } catch (_) {
     return false;
   }
 }
 // Archivos de build de Java/Kotlin. Un proyecto Java NO es necesariamente Spring.
 const JAVA_BUILD_FILES = ["pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts"];
-const javaBuildFiles = () => JAVA_BUILD_FILES.filter((f) => fs.existsSync(path.join(CWD, f)));
+const javaBuildFiles = (dir = CWD) => JAVA_BUILD_FILES.filter((f) => fs.existsSync(path.join(dir, f)));
+
+// Directorios que nunca contienen el proyecto: artefactos, dependencias y basura de build.
+// `packages/` se salta a propósito: en un monorepo, elegir un paquete al azar sería peor que
+// pedir --stack.
+const SKIP_SCAN = new Set([
+  "node_modules", "bin", "obj", "target", "dist", "build", "out", "vendor",
+  "venv", "__pycache__", "coverage", "packages", "tmp", "temp", "logs",
+]);
+// Subdirectorios candidatos, primero los más cercanos a la raíz (búsqueda en anchura).
+// Acotado en profundidad y en número: esto corre en el arranque del instalador.
+function candidateDirs(maxDepth = 3, maxDirs = 250) {
+  const salida = [];
+  let nivel = [CWD];
+  for (let d = 0; d < maxDepth && salida.length < maxDirs; d++) {
+    const siguiente = [];
+    for (const dir of nivel) {
+      let entradas;
+      try {
+        entradas = fs.readdirSync(dir, { withFileTypes: true });
+      } catch (_) {
+        continue;
+      }
+      for (const e of entradas) {
+        if (!e.isDirectory() || e.name.startsWith(".") || SKIP_SCAN.has(e.name)) continue;
+        const p = path.join(dir, e.name);
+        salida.push(p);
+        siguiente.push(p);
+        if (salida.length >= maxDirs) break;
+      }
+    }
+    nivel = siguiente;
+  }
+  return salida;
+}
 
 // Spring se declara de muchas formas: starters, BOM, plugin de Gradle, imports del framework.
 // Antes solo se miraba /spring-boot/ en pom.xml y /spring/ en build.gradle, así que un Gradle
 // con Kotlin DSL o un proyecto Spring sin la palabra exacta se quedaba sin detectar.
 const SPRING_SIGNALS = /spring-boot|spring-framework|org\.springframework|io\.spring\.dependency-management/i;
-const isSpringProject = () => javaBuildFiles().some((f) => fileHas(path.join(CWD, f), SPRING_SIGNALS));
+const isSpringProject = (dir = CWD) => javaBuildFiles(dir).some((f) => fileHas(path.join(dir, f), SPRING_SIGNALS));
 
-// Qué se vio en el directorio cuando la detección falla. Sin esto el usuario solo recibe
-// "no se pudo detectar" y tiene que adivinar por qué.
+// Qué se vio cuando la detección falla. Sin esto el usuario solo recibe "no se pudo detectar"
+// y tiene que adivinar por qué.
 function detectionHint() {
   const java = javaBuildFiles();
   if (java.length) {
@@ -190,32 +225,47 @@ function detectionHint() {
   if (fs.existsSync(path.join(CWD, "go.mod"))) return "Vi go.mod: aún no hay overlay de Go en el kit.";
   if (fs.existsSync(path.join(CWD, "Cargo.toml"))) return "Vi Cargo.toml: aún no hay overlay de Rust en el kit.";
   if (fs.existsSync(path.join(CWD, "package.json"))) return "Vi package.json pero ningún framework reconocido en sus dependencias.";
-  return "No vi ningún archivo de proyecto reconocible en este directorio.";
+  return "No vi ningún archivo de proyecto reconocible aquí ni en los subdirectorios cercanos.";
 }
 
-function detectStack() {
-  const pkg = readJSON(path.join(CWD, "package.json")) || {};
+// Reglas de detección aplicadas a UN directorio. Parametrizado a propósito: no todos los
+// proyectos tienen su manifiesto en la raíz del repo (en .NET lo normal es Proyecto/Proyecto.csproj).
+function detectIn(dir) {
+  const pkg = readJSON(path.join(dir, "package.json")) || {};
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
-  const req = path.join(CWD, "requirements.txt");
-  const pyproj = path.join(CWD, "pyproject.toml");
+  const req = path.join(dir, "requirements.txt");
+  const pyproj = path.join(dir, "pyproject.toml");
   // mobile
-  if (fs.existsSync(path.join(CWD, "pubspec.yaml"))) return "mobile/flutter";
+  if (fs.existsSync(path.join(dir, "pubspec.yaml"))) return "mobile/flutter";
   if (deps["react-native"] || deps["expo"]) return "mobile/react-native";
   // frontend
-  if (fs.existsSync(path.join(CWD, "angular.json")) || deps["@angular/core"]) return "frontend/angular";
-  if (hasFile("next.config.js", "next.config.mjs", "next.config.ts") || deps["next"]) return "frontend/nextjs"; // antes que react
+  if (fs.existsSync(path.join(dir, "angular.json")) || deps["@angular/core"]) return "frontend/angular";
+  if (hasFileIn(dir, "next.config.js", "next.config.mjs", "next.config.ts") || deps["next"]) return "frontend/nextjs"; // antes que react
   // backend específicos
-  if (fs.existsSync(path.join(CWD, "nest-cli.json")) || deps["@nestjs/core"]) return "backend/nestjs";
-  if (fs.existsSync(path.join(CWD, "foundry.toml"))) return "blockchain/solidity";
-  if (dirHasExt(/\.(csproj|sln)$/)) return "backend/dotnet";
-  if (isSpringProject()) return "backend/spring";
-  if (fs.existsSync(path.join(CWD, "manage.py")) || fileHas(req, /(^|\n)\s*django\b/i) || fileHas(pyproj, /\bdjango\b/i)) return "backend/django";
-  if (fs.existsSync(path.join(CWD, "composer.json"))) return "backend/php";
+  if (fs.existsSync(path.join(dir, "nest-cli.json")) || deps["@nestjs/core"]) return "backend/nestjs";
+  if (fs.existsSync(path.join(dir, "foundry.toml"))) return "blockchain/solidity";
+  if (dirHasExt(/\.(csproj|sln)$/, dir)) return "backend/dotnet";
+  if (isSpringProject(dir)) return "backend/spring";
+  if (fs.existsSync(path.join(dir, "manage.py")) || fileHas(req, /(^|\n)\s*django\b/i) || fileHas(pyproj, /\bdjango\b/i)) return "backend/django";
+  if (fs.existsSync(path.join(dir, "composer.json"))) return "backend/php";
   if (fileHas(req, /fastapi/i) || fileHas(pyproj, /fastapi/i)) return "backend/fastapi";
   // frontend genérico (después de next)
   if (deps["react"] && deps["react-dom"]) return "frontend/react";
   // backend JS genérico (Express/Fastify/Koa) — al final, ya descartados los frontends
   if (deps["express"] || deps["fastify"] || deps["koa"]) return "backend/express";
+  return null;
+}
+
+// La raíz manda. Solo si ahí no hay nada se buscan subdirectorios, porque en .NET, Java y
+// muchos repos el manifiesto vive un nivel más abajo (Proyecto/Proyecto.csproj, src/App/...).
+// Devuelve dónde encontró la evidencia para que la decisión sea auditable, no un acto de fe.
+function detectStack() {
+  const enRaiz = detectIn(CWD);
+  if (enRaiz) return { id: enRaiz, dir: null };
+  for (const sub of candidateDirs()) {
+    const id = detectIn(sub);
+    if (id) return { id, dir: path.relative(CWD, sub) };
+  }
   return null;
 }
 
@@ -761,13 +811,18 @@ async function main() {
   console.log(`║   Dev Starter Kit v${VERSION} — instalador      `.slice(0, 45) + "║");
   console.log("╚════════════════════════════════════════════╝");
 
-  let stackId = FLAGS.stack || detectStack();
+  const detectado = FLAGS.stack ? null : detectStack();
+  let stackId = FLAGS.stack || (detectado && detectado.id);
   if (stackId && !STACKS[stackId]) {
     console.log(`⚠️  Stack "${stackId}" no reconocido.`);
     stackId = null;
   }
   if (stackId) {
-    console.log(`\n✅ Stack detectado: ${stackId}`);
+    const donde = detectado && detectado.dir ? ` (por ${detectado.dir}/, no por la raíz)` : "";
+    console.log(`\n✅ Stack detectado: ${stackId}${donde}`);
+    if (detectado && detectado.dir) {
+      console.log(`   El kit se instala aquí, en ${path.basename(CWD)}/, para que el CLAUDE.md cubra todo el repo.`);
+    }
     if (!(await confirm("¿Es correcto?", true))) stackId = null;
   }
   if (!stackId) {
