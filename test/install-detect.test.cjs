@@ -15,10 +15,13 @@ const path = require("node:path");
 const INSTALL = path.join(__dirname, "..", "install.js");
 
 // Crea un proyecto temporal con los archivos dados y corre el instalador en dry-run.
+// Las claves pueden llevar subdirectorios ("PruebaConteo/PruebaConteo.csproj").
 function detectar(archivos) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-detect-"));
   for (const [nombre, contenido] of Object.entries(archivos)) {
-    fs.writeFileSync(path.join(dir, nombre), contenido);
+    const destino = path.join(dir, nombre);
+    fs.mkdirSync(path.dirname(destino), { recursive: true });
+    fs.writeFileSync(destino, contenido);
   }
   const r = spawnSync("node", [INSTALL, "--yes", "--no-flow", "--no-external", "--dry-run"], {
     cwd: dir,
@@ -71,6 +74,36 @@ test("detecta Angular por angular.json", () => {
 
 test("detecta Angular por la dependencia @angular/core", () => {
   assert.equal(detectar({ "package.json": '{"dependencies":{"@angular/core":"^20.0.0"}}' }).stack, "frontend/angular");
+});
+
+// El manifiesto no siempre está en la raíz del repo. En .NET es lo normal.
+test("detecta C# con el .csproj en un subdirectorio (layout normal de .NET)", () => {
+  const r = detectar({ "PruebaConteo/PruebaConteo.csproj": '<Project Sdk="Microsoft.NET.Sdk" />' });
+  assert.equal(r.stack, "backend/dotnet");
+  assert.match(r.salida, /PruebaConteo\//, "debe decir dónde encontró la evidencia");
+});
+
+test("detecta C# en el layout src/App/App.csproj", () => {
+  assert.equal(detectar({ "src/App/App.csproj": '<Project Sdk="Microsoft.NET.Sdk" />' }).stack, "backend/dotnet");
+});
+
+test("detecta Spring y Angular anidados", () => {
+  assert.equal(detectar({ "backend/pom.xml": "<project>spring-boot-starter</project>" }).stack, "backend/spring");
+  assert.equal(detectar({ "web/angular.json": "{}" }).stack, "frontend/angular");
+});
+
+test("la raíz gana sobre cualquier subdirectorio", () => {
+  const r = detectar({
+    "package.json": '{"dependencies":{"@nestjs/core":"^10"}}',
+    "sub/Legacy.csproj": '<Project Sdk="Microsoft.NET.Sdk" />',
+  });
+  assert.equal(r.stack, "backend/nestjs", "el proyecto de la raíz manda");
+  assert.doesNotMatch(r.salida, /no por la raíz/, "no debe anunciar evidencia anidada");
+});
+
+test("no confunde artefactos de build con el proyecto", () => {
+  assert.equal(detectar({ "obj/Debug/generado.csproj": "<Project />" }).stack, null, "obj/ debe ignorarse");
+  assert.equal(detectar({ "node_modules/x/angular.json": "{}" }).stack, null, "node_modules/ debe ignorarse");
 });
 
 test("la pista distingue otros ecosistemas sin overlay", () => {
