@@ -1059,10 +1059,10 @@ async function main() {
   const seenMk = new Set();
   const pushMk = (id) => { if (id && !seenMk.has(id)) { seenMk.add(id); marketplaces.push(id); } };
   (manifest.shared?.pluginMarketplaces || []).forEach((m) => pushMk(m.id));
-  (manifest.shared?.pluginsOptional || []).forEach((p) => installs.push(p.id));
+  (manifest.shared?.pluginsOptional || []).forEach((p) => installs.push(p));
   for (const p of manifest.stacks?.[pcat]?.pluginsOptional || []) {
     if (p.marketplace) pushMk(p.marketplace);
-    installs.push(p.id);
+    installs.push(p);
   }
   // Code intelligence (LSP) del stack: el plugin es solo el adaptador; el binario del language
   // server lo instala la persona (el kit no instala nada en global).
@@ -1070,7 +1070,8 @@ async function main() {
   if (marketplaces.length || installs.length || lsp) {
     console.log("\n🔌 Plugins de Claude Code (ejecuta DENTRO de Claude Code):");
     marketplaces.forEach((id) => console.log(`   /plugin marketplace add ${id}`));
-    installs.forEach((id) => console.log(`   /plugin install ${id}`));
+    // `short` resume la condición que hay que conocer antes de instalarlo (costo, datos que envía…).
+    installs.forEach((p) => console.log(`   /plugin install ${p.id}${p.short ? `   # ${p.short}` : ""}`));
     if (lsp) {
       console.log(`\n🧠 Code intelligence para ${stackId}: go-to-definition, referencias y errores de tipos en vivo.`);
       console.log(`   /plugin install ${lsp.plugin}`);

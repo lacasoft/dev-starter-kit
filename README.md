@@ -189,6 +189,13 @@ cubre lo que usábamos. Si un proyecto lo tenía:
 
 **Integrados por stack** (vía `claude-code-templates`, solo los marcados `integrar`):
 - shared: `code-reviewer`, skills `clean-code`, `senior-security`; marketplace oficial de plugins.
+- seguridad (plugins oficiales, **opcionales**, revisados archivo por archivo; el instalador los
+  lista con su condición):
+  - `security-guidance`: revisión automática del diff en cada turno y revisión agéntica en cada
+    commit. Cuesta una llamada a Opus por revisión (`ENABLE_STOP_REVIEW=0` deja solo la de commit) e
+    instala `claude-agent-sdk` sin versión fijada en `~/.claude/security` al iniciar sesión.
+  - `claude-security`: escaneo profundo bajo demanda con verificación independiente y SARIF. Pesado
+    en tokens; úsalo antes de un release grande. Licencia propietaria (se usa, no se destila).
 - code intelligence (plugins oficiales LSP, se indican por stack): `typescript-lsp` (Nest, Express,
   Angular, React, Next, React Native), `pyright-lsp` (FastAPI, Django), `php-lsp`, `jdtls-lsp`
   (Spring), `csharp-lsp` (.NET). Sin plugin oficial para Dart ni Solidity.
@@ -200,9 +207,13 @@ cubre lo que usábamos. Si un proyecto lo tenía:
 **Opcionales** (en `components.json` pero *no* se instalan solos; añádelos a mano si los quieres):
 `architect-review` (backend) y `senior-frontend` (frontend).
 
-**Descartados** (extracto; los 11 con su motivo están en `components.json` → `discarded`):
+**Descartados** (extracto; los 13 con su motivo están en `components.json` → `discarded`):
 - `ruvnet/claude-flow` (Ruflo) — retirado en la 3.x; ver "Orquestación multiagente".
 - `claude-mem` — duplica la memoria nativa y registra hooks propios.
+- `semgrep` (Guardian) — envía cada archivo que escribe el agente a la nube de Semgrep, en todos los
+  proyectos, y se autoactualiza con binarios opacos. Alternativa: `semgrep` CLI local o en CI.
+- `serena` — arranca con `uvx` desde el último commit de GitHub, sin versión fijada; los plugins LSP
+  oficiales cubren lo que aporta.
 - `mcp-expert` — atado al repo del CLI de davila7.
 - hooks de claude-code-templates (`lint-on-save`, `smart-formatting`, `security-scanner`, `tdd-gate`) —
   su instalador **pisa** nuestros arrays de hooks; su intención (format+lint+secret-scan) ya está en `hook-handler.cjs`.
