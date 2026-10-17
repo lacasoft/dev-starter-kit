@@ -66,9 +66,9 @@ La orquestación multiagente usa solo herramientas nativas (tool `Agent`, agente
 
 **1 MENSAJE = TODAS LAS OPERACIONES RELACIONADAS.**
 
-- `TodoWrite`: agrupa 5-10+ items en una sola llamada.
+- Lista de tareas: crea todos los items de una vez, no uno por mensaje.
 - `Bash`/`Read`/`Write`/`Edit` independientes: en paralelo, en un solo mensaje.
-- Spawning de agentes paralelos: todos los `Task`/`Agent` en un solo mensaje.
+- Spawning de agentes paralelos: todas las llamadas al tool `Agent` en un solo mensaje.
 - No serialices lo que puede correr concurrente.
 
 ## 5. Git, lint y commits
@@ -123,11 +123,14 @@ Esto no es solo documentación: el hook `pre-bash` (`helpers/hook-handler.cjs`) 
 
 ## 7. Calidad
 
-- Archivos < 500 LoC; funciones cortas y con una responsabilidad.
+- Archivos < 500 LoC; funciones cortas y con una responsabilidad; **complejidad cognitiva ≤ 15** por función.
 - Nada de código muerto ni comentado "por si acaso".
 - Manejo de errores explícito; nunca tragar excepciones en silencio.
 - Tests para la nueva funcionalidad y para cada regresión corregida.
 - TypeScript/tipado **strict**; evita `any` (usa `unknown` + narrowing).
+- **Gate de código nuevo** (*clean as you code*): lo que cambia no introduce issues nuevos de lint, tipos ni seguridad; **cobertura ≥ 80 % de las líneas nuevas o modificadas** donde se mida; duplicación nueva ≤ 3 %. La deuda heredada no bloquea el cambio, pero no se amplía.
+- En lógica crítica (dinero, permisos, cálculos), la cobertura no basta: **mutation testing** (Stryker, mutmut, PIT) o **property-based testing** demuestran que los tests fallan cuando el código se rompe.
+- Requisitos no funcionales con el vocabulario de **ISO/IEC 25010:2023**: adecuación funcional, eficiencia de desempeño, compatibilidad, capacidad de interacción, fiabilidad, seguridad, mantenibilidad, flexibilidad y protección (*safety*). Cada uno, con un criterio medible.
 
 ## 8. Completitud (no negociable)
 

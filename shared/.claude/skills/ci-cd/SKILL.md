@@ -13,9 +13,9 @@ Inspecciona el repo para inferir lenguaje/runtime/gestor (package.json+lock, pyp
 ## Etapas (orden y fail-fast)
 1. **Setup + caché**: cachea dependencias por hash del lockfile. Matriz solo si aporta (versiones de runtime/OS reales).
 2. **Lint + typecheck**: rápido, primero, bloqueante.
-3. **Test**: unit en paralelo; integración con servicios efímeros (Postgres/Redis en contenedor); reporta cobertura.
+3. **Test**: unit en paralelo; integración con servicios efímeros (Postgres/Redis en contenedor); reporta cobertura y aplica el gate de código nuevo de la baseline §7 (≥ 80 % de las líneas cambiadas, sin issues nuevos).
 4. **Build**: artefacto reproducible; en monorepo, **solo paquetes afectados** (turbo/nx).
-5. **Security**: SCA (`npm audit`/`pip-audit`/`osv-scanner`), escaneo de secretos, escaneo de imagen (`trivy`).
+5. **Security**: SCA (`npm audit`/`pip-audit`/`osv-scanner`), escaneo de secretos, escaneo de imagen (`trivy`), SAST si el repo lo tiene (`semgrep`/CodeQL) y SBOM (CycloneDX/SPDX) en los builds de release.
 6. **Deploy**: por entorno (preview/staging/prod), con aprobación manual para prod y **rollback** definido.
 
 ## Buenas prácticas
@@ -24,6 +24,7 @@ Inspecciona el repo para inferir lenguaje/runtime/gestor (package.json+lock, pyp
 - Secretos vía el secret store del CI (OIDC sobre claves estáticas cuando se pueda), nunca en el YAML.
 - Paraleliza lo independiente; cachea agresivo; falla rápido.
 - Mantén el tiempo total bajo (objetivo < 10 min para PR feedback).
+- Mide la entrega con las **métricas DORA**: frecuencia de despliegue, lead time de cambios, tasa de fallo de cambios, tiempo de recuperación de un despliegue fallido y tasa de retrabajo (despliegues no planeados para corregir). Si el CI puede exponerlas, que lo haga.
 
 ## Salida
 El YAML del pipeline (GitHub Actions / GitLab CI según el repo) con las etapas detectadas, caché, y comentarios de qué se detectó y por qué. Incluye los comandos reales del proyecto (lint/test/build) tomados de su `package.json`/`Makefile`.

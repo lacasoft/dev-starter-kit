@@ -22,7 +22,7 @@ Todo con herramientas nativas de Claude Code: el tool `Agent` para lanzar subage
 
 ## Modo secuencial — subagent-driven (un subagente fresco por tarea)
 Para **ejecutar un plan** en la misma sesión cuando quieres calidad por tarea (alternativa al fan-out paralelo; útil aunque las tareas no sean del todo independientes):
-1. Extrae **todas** las tareas del plan con su texto completo y crea el `TodoWrite`. El subagente **no lee el plan**: tú le pasas el texto y el contexto exactos (preservas tu contexto y el suyo, y evitas que se desvíe).
+1. Extrae **todas** las tareas del plan con su texto completo y crea la lista de tareas. El subagente **no lee el plan**: tú le pasas el texto y el contexto exactos (preservas tu contexto y el suyo, y evitas que se desvíe).
 2. Por cada tarea, **en serie** (no en paralelo: dos implementadores a la vez chocan):
    - **Implementador** (subagente fresco): implementa con TDD, testea, commitea y se auto-revisa. Puede **preguntar antes** de empezar — respóndele antes de que siga.
    - **Revisión de spec primero**: confirma que el código cumple la tarea, ni de más ni de menos. Huecos → el implementador corrige → se re-revisa.

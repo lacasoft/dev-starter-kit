@@ -38,7 +38,10 @@ Asertan comportamiento, no implementación. Edge cases cubiertos: inputs vacíos
 N+1 (queries dentro de loops). Colecciones grandes paginadas/streamed, no cargadas enteras en memoria. Índices en columnas usadas en `JOIN`/`WHERE`. Trabajo pesado fuera del hilo crítico.
 
 ### Diseño
-SOLID, DRY con criterio, niveles de abstracción coherentes, dirección de dependencias, acoplamiento/cohesión, diseño de interfaces, extensibilidad.
+SOLID, DRY con criterio, niveles de abstracción coherentes, dirección de dependencias, acoplamiento/cohesión, diseño de interfaces, extensibilidad. Funciones con complejidad cognitiva > 15 se marcan con su alternativa.
+
+### Gate de código nuevo
+El cambio no introduce issues nuevos (lint, tipos, seguridad); cobertura ≥ 80 % de las líneas nuevas o modificadas si el proyecto la mide; duplicación nueva ≤ 3 %. La deuda heredada no bloquea, pero el diff no la amplía. Si el proyecto no mide algo de esto, dilo en vez de suponerlo.
 
 ## Reglas por lenguaje
 
