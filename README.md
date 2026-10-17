@@ -34,7 +34,7 @@ Dentro de **cualquier proyecto** (nuevo o heredado), sin clonar nada:
 ```bash
 npx -y github:lacasoft/dev-starter-kit              # interactivo
 npx -y github:lacasoft/dev-starter-kit --yes --all  # desatendido (todo)
-npx -y github:lacasoft/dev-starter-kit#v2.1.0       # fijar una versión (recomendado)
+npx -y github:lacasoft/dev-starter-kit#v3.0.0       # fijar una versión (recomendado)
 ```
 
 Toma siempre la última versión de `master` (o el tag indicado). Repo **público (MIT)**.
@@ -303,8 +303,8 @@ recibir la copia vieja. La solución buena es la misma que exige la baseline §6
 versión** — y de paso hace la instalación reproducible:
 
 ```bash
-npx -y github:lacasoft/dev-starter-kit#v2.1.0 --update --yes   # por tag
-npx -y github:lacasoft/dev-starter-kit#585beb1 --update --yes  # por commit (equivale a v2.1.0)
+npx -y github:lacasoft/dev-starter-kit#v3.0.0 --update --yes    # por tag
+npx -y github:lacasoft/dev-starter-kit#<commit> --update --yes  # por commit (el SHA del tag)
 ```
 
 Si aun así sospechas que te sirvió una copia vieja, compara el número de versión del banner del
@@ -324,4 +324,4 @@ Repo **público (MIT)** distribuido por `npx github:` → la rama **`master` deb
   (dry-run) y en un monorepo multi-stack, en cada PR. La lista sale de `scripts/stacks.cjs`, que la deriva de `install.js`.
 - **Cómo añadir** agentes, skills, stacks o externos: ver [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Versionado**: SemVer en `package.json` + `CHANGELOG.md`, con tag anotado por versión
-  (`v2.1.0`). Instala siempre pineando (`#v2.1.0`): es reproducible y evita la cache de npx.
+  (`v3.0.0`). Instala siempre pineando (`#v3.0.0`): es reproducible y evita la cache de npx.

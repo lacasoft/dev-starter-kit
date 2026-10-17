@@ -4,7 +4,11 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](htt
 
 ## [No publicado]
 
-> **Cambio incompatible**: se retira Ruflo (claude-flow). La próxima versión es **3.0.0**.
+## [3.0.0] - 2026-10-17
+
+Estándares de seguridad y calidad al día (OWASP Top 10:2025, ASVS 5.0, CWE Top 25 2025, listas OWASP de LLM y agentes 2026, ISO/IEC 25010:2023), memoria y contexto con las capacidades nativas de Claude Code, monorepos multi-stack con reglas por carpeta, y fuera Ruflo (claude-flow).
+
+> **Cambio incompatible.** El kit ya no integra Ruflo (claude-flow) ni su modo "enjambre híbrido"; la memoria propia (`.claude/memory/`, helpers y hooks) se sustituye por la nativa; y el overlay del stack sale del bloque gestionado de `CLAUDE.md` hacia `.claude/rules/kit/`. `--update` hace la migración solo (ver *Notas de actualización*).
 
 ### Removed
 - **Ruflo (claude-flow) deja de integrarse.** Era el modo "enjambre híbrido": el instalador podía ejecutar `claude-flow init`, que se volvía dueño del `settings.json`, añadía servidores MCP (`claude-flow`, `ruv-swarm`, `flow-nexus`) y decenas de archivos en `.claude/`, y obligaba a la capa base a omitir sus 5 agentes core para no chocar. No es estándar y la coordinación nativa de Claude Code (tool `Agent`, worktrees, memoria de agente) cubre lo que usábamos. Se quitan: el paso de `init` y el flag `--no-flow` (se sigue aceptando, avisa y no hace nada), los permisos `mcp__claude-flow__*`/`claude-flow*`, el env `CLAUDE_FLOW_HOOKS_ENABLED`, los hooks sin efecto que existían para él (`post-bash`, `post-task`, `notify`), el modo A de `swarm-orchestration` y su vocabulario de topologías, y `.claude-flow/`/`.swarm/` del `.gitignore` que escribe el instalador. Queda en `components.json` → `discarded` con el motivo.
@@ -66,6 +70,17 @@ Cuatro plugins oficiales candidatos, revisados contra el código fuente (no solo
 - **Detección de Spring incompleta**: se exigía la cadena literal `spring-boot` en el `pom.xml`, así que un proyecto que solo declara `org.springframework` (BOM o Spring Framework sin Boot) no se detectaba; y los `settings.gradle`/`settings.gradle.kts` no se miraban en absoluto. Ahora se buscan varias señales en los cinco archivos de build.
 - **Un proyecto Java sin Spring quedaba en un callejón sin salida**: la detección devolvía `null` sin explicar nada y, con `--yes`, el instalador salía con código 1 a secas. Ahora imprime qué vio (`pom.xml`/`build.gradle`), aclara que el overlay de Java del kit es Spring Boot y avisa de que para Quarkus, Micronaut o Jakarta EE puro ese overlay no encaja. Misma pista para ecosistemas sin overlay (Go, Rust) y para un `package.json` sin framework reconocido.
 - **`validate.cjs` verifica que el README no mienta.** El README se había desviado en silencio: listaba helpers borrados dos releases antes, 9 de los 13 stacks, "los 8 stacks" del CI y ejemplos pineados a `#v1.2.0`. Ahora se comprueban contra el repo los conteos de agentes, skills y stacks (los del árbol y los del CI), la lista de helpers, los stacks por categoría, el número de componentes descartados, y que todo ejemplo `#vX.Y.Z` apunte a la versión de `package.json`. Si una de esas frases desaparece, falla explícitamente en vez de dejar de comprobar: 38 → 49 comprobaciones.
+
+### Notas de actualización
+- Ejecuta `npx -y github:lacasoft/dev-starter-kit#v3.0.0 --update --yes` en cada proyecto. Fija el tag: `npx` cachea las specs de GitHub.
+- Lo que hace solo `--update`: retira de `settings.json` todo lo de Ruflo (y lo enumera), borra los helpers de la memoria propia si siguen intactos, saca el overlay del bloque de `CLAUDE.md` hacia `.claude/rules/kit/`, añade las skills nuevas (`owasp-review`, `project-context`, `adr`) y la memoria de equipo de `researcher`/`reviewer`/`security-engineer`. Hace backup antes.
+- Lo que tienes que hacer tú:
+  - Si el instalador lista **restos de Ruflo** (servidores en `.mcp.json`, `.claude-flow/`, `.swarm/`, archivos en `.claude/`, instrucciones en `CLAUDE.md`), bórralos cuando confirmes que no los usas. El kit no los borra porque no los instaló directamente.
+  - Abre Claude Code y corre **`/project-context`**: el aviso de inicio de sesión te lo recordará mientras `CLAUDE.project.md` siga siendo la plantilla. Fija ahí el **nivel ASVS**.
+  - Instala el **plugin LSP** de tu stack y su language server (el instalador imprime ambos comandos).
+  - Desde ahora `.claude/agent-memory/` se versiona: revisa sus cambios en los PR como el código.
+  - **Monorepo**: relanza sin `--stack` para que detecte un stack por carpeta, o indícalos con `--stack <cat/stack>:<carpeta>,…`.
+- `--no-flow` se sigue aceptando pero no hace nada: quítalo de tus scripts cuando puedas.
 
 ## [2.1.0] - 2026-08-08
 

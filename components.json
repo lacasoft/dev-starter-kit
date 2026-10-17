@@ -1,5 +1,5 @@
 {
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Manifiesto de componentes externos curados. El instalador (install.js) los aplica por stack. Revisados uno a uno antes de integrar.",
 
   "cctCli": "npx -y claude-code-templates@1.28.16",
