@@ -37,12 +37,11 @@
 | `/scripts` | utilidades |
 | `/examples` | ejemplos |
 
-Nunca en la raíz. En `.gitignore`: `/docs` (salvo `/docs/adr`, que SÍ se versiona), `.claude/memory/`, `.claude-flow/`, `.swarm/`, `*.local.*`, `.env*`. Los ADRs son historia del proyecto: deben sobrevivir un clone y verse para todos.
+Nunca en la raíz. En `.gitignore`: `/docs` (salvo `/docs/adr`, que SÍ se versiona), `.claude/memory/`, `*.local.*`, `.env*`. Los ADRs son historia del proyecto: deben sobrevivir un clone y verse para todos.
 
-## 3. Coordinación de agentes (modelo de enjambre híbrido)
+## 3. Coordinación de agentes (nativa de Claude Code)
 
-El proyecto puede operar con **claude-flow** (enjambre multi-agente) cuando está instalado.
-Independientemente de eso, estas reglas de coordinación aplican SIEMPRE:
+La orquestación multiagente usa solo herramientas nativas (tool `Agent`, agentes de `.claude/agents/`, worktrees). Sin runtimes de orquestación de terceros.
 
 - **Agentes core** (ver `.claude/agents/`):
   - `planner` → antes de toda feature grande: descompone, identifica riesgos, secuencia.
@@ -56,7 +55,7 @@ Independientemente de eso, estas reglas de coordinación aplican SIEMPRE:
   - `api-security-audit` → auditoría focalizada de APIs REST/GraphQL (OWASP API Top 10, BOLA/BFLA).
   - `penetration-tester` → testing ofensivo **solo autorizado** (rules of engagement).
   - `monitoring-specialist` → observabilidad: métricas, trazas, logs, SLO, alertas accionables.
-- **Topología** (si hay claude-flow): `hierarchical-mesh`, coordinador + workers especializados.
+- **Estructura**: coordinador (tú) + workers especializados; cada subagente arranca en frío, así que recibe en el prompt todo el contexto que necesita (skill `swarm-orchestration`).
 - **Memoria compartida**: el estado entre agentes y sesiones vive en `.claude/memory/`
   (local y por-proyecto). Lo gestionan los helpers; no la inventes en otro sitio.
 - **Protocolo por tarea**: (1) recuperar contexto/aprendizajes previos → (2) planificar →

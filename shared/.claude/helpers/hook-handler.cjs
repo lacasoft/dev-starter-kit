@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * Entry-point único de hooks. Claude Code pasa el payload del hook como JSON por STDIN.
- * Acciones (1ª arg): pre-bash, pre-edit, post-edit, post-bash,
- *                     session-restore, session-end, post-task, notify, compact-manual, compact-auto, status.
+ * Acciones (1ª arg): pre-bash, pre-edit, post-edit, session-restore, session-end.
+ * Una acción desconocida (p. ej. de un settings.json antiguo) no hace nada y sale con 0.
  *
  * Diseño: solo interviene en casos explícitos. Con exit 2, los destructivos clásicos
  * (rm -rf /, push --force a rama protegida). Con JSON permissionDecision "deny", los secretos
@@ -253,9 +253,7 @@ switch (action) {
     break;
   }
 
-  case "session-end":
-  case "compact-manual":
-  case "compact-auto": {
+  case "session-end": {
     const session = load("session.cjs");
     if (session) {
       try {
@@ -265,12 +263,7 @@ switch (action) {
     break;
   }
 
-  case "post-task":
-  case "post-bash":
-  case "status":
-  case "notify":
   default:
-    // Sin efectos: estos eventos existen para integrarse con claude-flow si está presente.
     break;
 }
 

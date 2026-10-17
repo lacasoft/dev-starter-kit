@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * install.js — Instalador del Dev Starter Kit (capa coherente + enjambre híbrido).
+ * install.js — Instalador del Dev Starter Kit (capa coherente + orquestación multiagente nativa).
  *
  * Hace:
  *  1. Detecta el stack (category/stack) o lo pides tú.
  *  2. Backup de .claude/ y copia la capa base (shared/.claude → .claude): agentes, skills, helpers, settings, comandos.
  *  3. Scaffolda CLAUDE.project.md y compone ./CLAUDE.md (project + base + común + stack) en bloque gestionado.
  *  4. Actualiza .gitignore (memoria/runtime/backups/secretos).
- *  5. (opcional) Orquesta claude-flow init para el enjambre real (primero; nuestra capa va encima sin pisarlo).
+ *  5. Avisa de restos de Ruflo (claude-flow): el kit ya no lo integra.
  *  6. (opcional) Instala agentes/skills externos curados (claude-code-templates) y deps npm por stack.
  *  7. Indica los plugins de Claude Code a añadir (shared + por-stack).
  *  8. Imprime un resumen del proyecto (stack, tests, calidad, entrega, git, entorno) y sus huecos.
@@ -15,8 +15,7 @@
  * Flags:
  *   --stack <cat/stack>  fuerza el stack (si no, autodetecta)
  *   --yes, -y            no interactivo: usa el default de cada confirmación
- *   --all                acepta TODO (claude-flow + externos + deps). Combina con --yes para desatendido total
- *   --no-flow            no ejecuta claude-flow init
+ *   --all                acepta TODO (externos + deps). Combina con --yes para desatendido total
  *   --no-external        no instala componentes externos (claude-code-templates / npm)
  *   --update, --force    sobrescribe la capa base con la última versión (conserva memoria y CLAUDE.project.md)
  *   --dry-run            simula: imprime qué haría, no escribe ni ejecuta
@@ -34,7 +33,8 @@ const argv = process.argv.slice(2);
 const FLAGS = {
   yes: argv.includes("--yes") || argv.includes("-y"),
   all: argv.includes("--all"),
-  noFlow: argv.includes("--no-flow"),
+  // Retirado junto con Ruflo (claude-flow). Se acepta para no romper scripts, pero no hace nada.
+  noFlowLegacy: argv.includes("--no-flow"),
   noExternal: argv.includes("--no-external"),
   update: argv.includes("--update") || argv.includes("--force"),
   dryRun: argv.includes("--dry-run"),
@@ -55,13 +55,13 @@ Uso:  node install.js [opciones]
 
   --stack <cat/stack>  fuerza el stack (backend/nestjs, frontend/react, mobile/flutter, ...)
   --yes, -y            no interactivo: usa el default de cada confirmación (conservador)
-  --all                acepta TODO (claude-flow + externos + deps). Usa "--yes --all" para desatendido total
-  --no-flow            no ejecuta claude-flow init
+  --all                acepta TODO (externos + deps). Usa "--yes --all" para desatendido total
   --no-external        no instala componentes externos
   --update, --force    actualiza la capa base sin perder nada tuyo: solo reescribe los archivos
                        que siguen igual que como los dejó el kit (según .claude/.kit-manifest.json).
                        Lo que hayas editado se conserva y la versión nueva queda como *.kit-new.
-                       settings.json se FUSIONA (tus permisos, hooks y env se mantienen).
+                       settings.json se FUSIONA (tus permisos, hooks y env se mantienen,
+                       salvo lo que apunte a Ruflo/claude-flow, que se retira).
                        Memoria y CLAUDE.project.md intactos. Hace backup antes.
   --dry-run            simula sin escribir ni ejecutar
   --help, -h           esta ayuda
@@ -72,7 +72,7 @@ Con --yes el stack debe ser detectable o venir en --stack, o sale con error.
 
 Hace: backup de .claude → aplica capa base (agentes/skills/helpers/settings) →
       compone CLAUDE.md (base+común+stack) + CLAUDE.project.md → actualiza .gitignore →
-      (opc.) claude-flow init → (opc.) externos → indica plugins de Claude Code.
+      avisa de restos de Ruflo → (opc.) externos → indica plugins de Claude Code.
 `);
   process.exit(0);
 }
@@ -298,10 +298,6 @@ function applyLayer(src, dest, ctx, base) {
     const s = path.join(src, entry.name);
     const d = path.join(dest, entry.name);
     const rel = path.relative(base, s).split(path.sep).join("/");
-    if (ctx.skip && ctx.skip(rel)) {
-      console.log(`  ⏭️  omitido (claude-flow lo cubre): ${rel}`);
-      continue;
-    }
     if (entry.isDirectory()) {
       if (!FLAGS.dryRun) fs.mkdirSync(d, { recursive: true });
       applyLayer(s, d, ctx, base);
@@ -314,7 +310,7 @@ function applyLayer(src, dest, ctx, base) {
     // settings.json es el archivo que la gente personaliza (permisos, hooks propios, env).
     // En una actualización se FUSIONA, jamás se reemplaza.
     if (rel === "settings.json" && existed && FLAGS.update) {
-      const text = JSON.stringify(mergeSettings(s, d), null, 2) + "\n";
+      const text = JSON.stringify(mergeSettings(s, d, ctx.retiredSettings), null, 2) + "\n";
       ctx.next[rel] = hash(Buffer.from(text));
       if (hash(fs.readFileSync(d)) === ctx.next[rel]) {
         ctx.same++;
@@ -363,18 +359,36 @@ function applyLayer(src, dest, ctx, base) {
 //  - permisos: unión sin duplicados.
 //  - env: tus valores ganan.  - statusLine: si apunta a otra cosa, se respeta.
 //  - cualquier otra clave que hayas añadido se conserva tal cual.
+// Única excepción: lo que apunta a Ruflo (claude-flow) se retira. El kit lo instalaba (permisos,
+// env, y el `claude-flow init` que traía sus propios hooks) y ya no lo integra; dejarlo haría que
+// cada sesión siguiera llamando a un runtime que nadie mantiene. Lo retirado se informa.
 const isKitHook = (g) =>
   Array.isArray(g && g.hooks) && g.hooks.length > 0 && g.hooks.every((h) => /hook-handler\.cjs|auto-memory-hook\.mjs/.test((h && h.command) || ""));
+const RUFLO = /claude[-_]?flow|ruflo|ruv-swarm|flow-nexus/i;
+const isRuflo = (v) => RUFLO.test(typeof v === "string" ? v : JSON.stringify(v));
 
-function mergeSettings(kitPath, destPath) {
+function mergeSettings(kitPath, destPath, retired = []) {
   const kit = readJSON(kitPath) || {};
   const cur = readJSON(destPath) || {};
   const out = { ...cur };
   if (kit.$schema) out.$schema = kit.$schema;
+  for (const k of Object.keys(out)) {
+    if (isRuflo(k)) {
+      delete out[k];
+      retired.push(`clave "${k}"`);
+    }
+  }
 
   const hooks = { ...(cur.hooks || {}) };
   for (const ev of new Set([...Object.keys(kit.hooks || {}), ...Object.keys(cur.hooks || {})])) {
-    const tuyos = (cur.hooks[ev] || []).filter((g) => !isKitHook(g));
+    const tuyos = (cur.hooks?.[ev] || []).filter((g) => {
+      if (isKitHook(g)) return false;
+      if (isRuflo(g)) {
+        retired.push(`hook ${ev}`);
+        return false;
+      }
+      return true;
+    });
     const merged = [...(kit.hooks?.[ev] || []), ...tuyos];
     if (merged.length) hooks[ev] = merged;
     else delete hooks[ev];
@@ -386,12 +400,25 @@ function mergeSettings(kitPath, destPath) {
     const a = kit.permissions?.[k];
     const b = cur.permissions?.[k];
     // allow/deny/ask son listas (se unen); defaultMode y similares son escalares (gana el tuyo).
-    if (Array.isArray(a) || Array.isArray(b)) perms[k] = [...new Set([...(a || []), ...(b || [])])];
-    else perms[k] = b !== undefined ? b : a;
+    if (Array.isArray(a) || Array.isArray(b)) {
+      perms[k] = [...new Set([...(a || []), ...(b || [])])].filter((p) => {
+        if (!isRuflo(p)) return true;
+        retired.push(`permiso ${p}`);
+        return false;
+      });
+    } else perms[k] = b !== undefined ? b : a;
   }
   out.permissions = perms;
 
-  out.env = { ...(kit.env || {}), ...(cur.env || {}) };
+  const env = { ...(kit.env || {}), ...(cur.env || {}) };
+  for (const k of Object.keys(env)) {
+    if (isRuflo(k)) {
+      delete env[k];
+      retired.push(`env ${k}`);
+    }
+  }
+  if (Object.keys(env).length) out.env = env;
+  else delete out.env;
   const propia = cur.statusLine && !/statusline\.cjs/.test(JSON.stringify(cur.statusLine));
   if (!propia && kit.statusLine) out.statusLine = kit.statusLine;
   return out;
@@ -406,6 +433,10 @@ function reportLayer(ctx) {
   if (ctx.userOwned) l.push(`${ctx.userOwned} tuyos respetados (los editaste y el kit no los cambió)`);
   if (ctx.merged) l.push("settings.json fusionado");
   if (l.length) console.log(`  📋 ${l.join(" · ")}`);
+  if (ctx.retiredSettings.length) {
+    console.log(`\n  🧹 Retirado de settings.json por apuntar a Ruflo (claude-flow): ${ctx.retiredSettings.join(" · ")}`);
+    console.log("     Si lo necesitabas, está en el backup .claude.backup.* de esta ejecución.");
+  }
   if (ctx.conflicts.length) {
     console.log(`\n  ⚠️  ${ctx.conflicts.length} archivo(s) con cambios que no instaló el kit: se conservan intactos.`);
     console.log("     La versión nueva quedó al lado como *.kit-new. Compara y quédate con lo que quieras:");
@@ -417,12 +448,56 @@ function reportLayer(ctx) {
   }
 }
 
-function mcpHasFlow() {
-  const m = readJSON(path.join(CWD, ".mcp.json"));
-  return !!(m && m.mcpServers && Object.keys(m.mcpServers).some((k) => /flow/i.test(k)));
+// Ruflo (antes claude-flow) dejaba runtime, servidores MCP y decenas de archivos propios en el
+// proyecto. El kit ya no lo integra, pero no borra nada que no instaló él mismo: lo encuentra,
+// lo enumera y dice cómo quitarlo. Solo lectura. `kitFiles` son las rutas (relativas a .claude/)
+// que gestiona el kit: esas nunca cuentan como restos.
+function rufloLeftovers(kitFiles = {}) {
+  const found = [];
+  const mcp = readJSON(path.join(CWD, ".mcp.json"));
+  for (const [name, def] of Object.entries((mcp && mcp.mcpServers) || {})) {
+    if (isRuflo(name) || isRuflo(def)) found.push(`.mcp.json: servidor "${name}" → quítalo de mcpServers`);
+  }
+  for (const d of [".claude-flow", ".swarm", ".hive-mind"]) {
+    if (fs.existsSync(path.join(CWD, d))) found.push(`${d}/ → rm -rf ${d}`);
+  }
+  if (fileHas(path.join(CWD, ".claude", "settings.json"), RUFLO)) {
+    found.push(".claude/settings.json: hooks/permisos de Ruflo → se retiran con --update");
+  }
+  const enClaude = [];
+  const queue = [path.join(CWD, ".claude")];
+  for (let visited = 0; queue.length && visited < 2000; visited++) {
+    const dir = queue.shift();
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_) {
+      continue;
+    }
+    for (const e of entries) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (e.name !== "memory" && !e.name.startsWith(".claude.backup")) queue.push(p);
+      } else if (
+        e.name !== "settings.json" &&
+        !kitFiles[path.relative(path.join(CWD, ".claude"), p).split(path.sep).join("/")] &&
+        /\.(md|json|cjs|mjs|js|sh)$/.test(e.name) &&
+        fileHas(p, RUFLO)
+      ) {
+        enClaude.push(path.relative(CWD, p));
+      }
+    }
+  }
+  if (enClaude.length) {
+    found.push(`.claude/: ${plural(enClaude.length, "archivo menciona", "archivos mencionan")} Ruflo/claude-flow (p. ej. ${enClaude.slice(0, 3).join(", ")})`);
+  }
+  const root = readMaybe(path.join(CWD, "CLAUDE.md"));
+  const fuera = root.replace(new RegExp(`${esc(MB)}[\\s\\S]*?${esc(ME)}`), "");
+  if (RUFLO.test(fuera)) found.push("CLAUDE.md: hay instrucciones de Ruflo fuera del bloque del kit → bórralas a mano");
+  return found;
 }
 
-const GITIGNORE = [".claude/memory/", ".claude-flow/", ".swarm/", ".claude.backup.*", ".env", ".env.*"];
+const GITIGNORE = [".claude/memory/", ".claude.backup.*", ".env", ".env.*"];
 // Los archivos de ejemplo de env van versionados (la baseline los exige), pero ".env.*" los
 // captura. Git aplica la última regla que casa, así que las negaciones van SIEMPRE después.
 const GITIGNORE_KEEP = ["!.env.example", "!.env.sample", "!.env.template"];
@@ -850,22 +925,11 @@ async function main() {
     console.log(`\n📦 Backup: ${bk}`);
   }
 
-  // 1) claude-flow PRIMERO (si se opta): es dueño del runtime (settings.json, helpers, .mcp.json).
-  //    Nuestra capa se aplica encima con skip-existing y NO lo pisa.
-  let flowInstalled = mcpHasFlow();
-  if (!FLAGS.noFlow && manifest.claudeFlow?.enabled && !flowInstalled) {
-    console.log("\n🐝 Enjambre (claude-flow): instala el runtime real (MCP + helpers + hooks de coordinación).");
-    if (await confirm("¿Ejecutar claude-flow init? (descarga ~100 archivos)", FLAGS.all)) {
-      if (run(manifest.claudeFlow.initCommand)) flowInstalled = true;
-    } else {
-      console.log("  → Omitido. La capa base funciona sola (modo coordinación nativa).");
-    }
-  } else if (flowInstalled) {
-    console.log("\n🐝 claude-flow ya presente (.mcp.json). Aplico nuestra capa encima sin pisarlo.");
+  if (FLAGS.noFlowLegacy) {
+    console.log("\nℹ️  --no-flow ya no hace nada: el kit dejó de integrar Ruflo (claude-flow). Puedes quitarlo de tus scripts.");
   }
 
-  // 2) capa base (encima de claude-flow si está). En modo flow se omiten nuestros agentes core
-  //    (los cubre claude-flow agents/core/*) para no duplicar nombres de agente.
+  // 1) capa base
   console.log("\n📄 Aplicando capa base (shared/.claude)...");
   const manifestPath = path.join(claudeDir, MANIFEST_FILE);
   const prevManifest = readJSON(manifestPath);
@@ -878,21 +942,10 @@ async function main() {
     );
   }
   if (!FLAGS.dryRun) fs.mkdirSync(claudeDir, { recursive: true });
-  // Solo se omiten los 5 agentes core cuyo NOMBRE colisiona con claude-flow (agents/core/*).
-  // El resto de agentes top-level (security-engineer, api-security-audit, ...) se conservan;
-  // si claude-flow ya trae uno con el mismo path, applyLayer lo respeta por skip-existing.
-  const FLOW_CORE_COLISION = /^agents\/(coder|planner|reviewer|tester|researcher)\.md$/;
   const layer = {
     prev: (prevManifest && prevManifest.files) || {},
     next: {},
-    added: 0, updated: 0, same: 0, kept: 0, userOwned: 0, merged: false, conflicts: [],
-    skip: (rel) => {
-      if (flowInstalled && FLOW_CORE_COLISION.test(rel)) return true;
-      // Si claude-flow es dueño del runtime, su settings.json manda: ni se pisa ni se fusiona.
-      // (Si aún no existe, sí lo escribimos: el proyecto se quedaría sin hooks ni permisos.)
-      if (flowInstalled && rel === "settings.json" && fs.existsSync(path.join(claudeDir, "settings.json"))) return true;
-      return false;
-    },
+    added: 0, updated: 0, same: 0, kept: 0, userOwned: 0, merged: false, conflicts: [], retiredSettings: [],
   };
   applyLayer(path.join(KIT, "shared", ".claude"), claudeDir, layer);
   reportLayer(layer);
@@ -900,12 +953,20 @@ async function main() {
     fs.writeFileSync(manifestPath, JSON.stringify({ version: VERSION, files: layer.next }, null, 2) + "\n");
   }
 
-  // 3) Definición del proyecto + CLAUDE.md raíz (añade/actualiza nuestro bloque; respeta el de claude-flow y anexa)
+  // 2) Definición del proyecto + CLAUDE.md raíz (añade/actualiza nuestro bloque; respeta lo demás)
   console.log("\n📝 Definición del proyecto y CLAUDE.md...");
   const hasProject = await scaffoldProject();
   composeClaudeMd(stackId, hasProject);
   ensureGitignore();
   await scaffoldEnvExample();
+
+  // 3) restos de Ruflo (solo lectura)
+  const ruflo = rufloLeftovers(layer.next);
+  if (ruflo.length) {
+    console.log("\n🧹 Restos de Ruflo (claude-flow) en este proyecto. El kit ya no lo integra:");
+    ruflo.forEach((r) => console.log(`   • ${r}`));
+    console.log("   No borro nada que no instalé yo: revísalo y elimínalo cuando confirmes que no lo usas.");
+  }
 
   // 4) externos (claude-code-templates: agentes + skills)
   if (!FLAGS.noExternal) {
@@ -961,7 +1022,6 @@ async function main() {
   console.log("   • Capa base coherente aplicada en .claude/ (agentes, skills, helpers, settings, comandos)");
   console.log("   • CLAUDE.md compuesto (project + base + común + stack) en la raíz");
   console.log("   • Memoria por-proyecto en .claude/memory/ y .gitignore actualizado");
-  if (!flowInstalled) console.log("   • Sin claude-flow: coordinación nativa (ejecútalo luego con: " + (manifest.claudeFlow?.initCommand || "claude-flow init") + ")");
 
   try {
     summarizeProject(stackId);

@@ -1,34 +1,24 @@
 ---
 name: swarm-orchestration
-description: Úsalo al escalar más allá de un solo agente — features grandes, migraciones, auditorías o trabajo con muchas partes independientes que un solo contexto no abarca, o cuando necesitas perspectivas independientes que verifiquen lo producido. Orquestación multi-agente híbrida (claude-flow o coordinación nativa).
+description: Úsalo al escalar más allá de un solo agente — features grandes, migraciones, auditorías o trabajo con muchas partes independientes que un solo contexto no abarca, o cuando necesitas perspectivas independientes que verifiquen lo producido.
 ---
 
-# Swarm Orchestration (nivel experto, modelo híbrido)
+# Orquestación multiagente (nivel experto, nativa de Claude Code)
 
-Eres un experto en sistemas distribuidos y coordinación multi-agente. Tratas a un equipo de agentes como un sistema concurrente: hay que descomponer para paralelizar, definir contratos claros entre tareas, evitar coordinación innecesaria (es cara) y **verificar de forma independiente** lo producido. Sabes que más agentes no es mejor: el overhead de coordinación crece y, pasado un punto, resta. Escalas el enjambre a la tarea, no al revés.
+Eres un experto en sistemas distribuidos y coordinación multiagente. Tratas a un equipo de agentes como un sistema concurrente: hay que descomponer para paralelizar, definir contratos claros entre tareas, evitar coordinación innecesaria (es cara) y **verificar de forma independiente** lo producido. Sabes que más agentes no es mejor: el overhead de coordinación crece y, pasado un punto, resta. Escalas el equipo a la tarea, no al revés.
+
+Todo con herramientas nativas de Claude Code: el tool `Agent` para lanzar subagentes, los agentes de `.claude/agents/`, worktrees para aislar escrituras y la memoria de agente para lo que deba sobrevivir a la sesión. Sin runtimes de orquestación de terceros (ver `components.json` → `discarded`).
 
 ## Cuándo orquestar (y cuándo no)
 - **Sí**: subtareas genuinamente independientes; migraciones/auditorías/refactors amplios que un contexto no abarca; necesidad de perspectivas independientes (verificar lo que otro agente produjo).
 - **No**: tareas pequeñas y secuenciales — el overhead de coordinación supera el beneficio. Un solo agente disciplinado gana.
 
-## Modo A — con claude-flow instalado (enjambre real)
-Si el proyecto tiene claude-flow (MCP activo, ver `.mcp.json`), úsalo para coordinación, memoria compartida con búsqueda semántica (HNSW) y aprendizaje entre sesiones:
-
-```bash
-npx claude-flow swarm init --topology hierarchical-mesh --max-agents 12
-npx claude-flow agent spawn --type coder
-npx claude-flow agent spawn --type tester
-npx claude-flow task orchestrate --task "Implementar feature X con tests" --mode parallel
-```
-Respeta su namespace de memoria y sus hooks de coordinación.
-
-## Modo B — sin claude-flow (coordinación nativa)
-Usa el `Task`/`Agent` tool de Claude Code. El patrón de enjambre se mantiene:
+## Modo paralelo — fan-out
 1. **Coordinador** (tú): descompón con `planner`.
-2. **Fan-out**: lanza los subagentes independientes **en un solo mensaje** (corren en paralelo).
-3. **Memoria compartida**: el estado entre agentes pasa por `.claude/memory/`.
+2. **Fan-out**: lanza los subagentes independientes **en un solo mensaje** (corren en paralelo). Si dos o más van a **escribir** archivos, aíslalos en worktrees (skill `git-worktrees`) o no los lances a la vez.
+3. **Contexto explícito**: cada subagente arranca en frío. Pásale en el prompt el objetivo, las rutas exactas, las restricciones y el formato de salida que esperas; no supongas que "ya sabe". El estado entre agentes viaja en sus prompts y en sus resultados, no en archivos improvisados.
 4. **Verificación adversarial**: `reviewer` valida de forma independiente; lo que un verificador rechaza, no entra.
-5. **Síntesis**: integras resultados.
+5. **Síntesis**: integras resultados y decides tú; un subagente no aprueba su propio trabajo.
 
 ## Modo secuencial — subagent-driven (un subagente fresco por tarea)
 Para **ejecutar un plan** en la misma sesión cuando quieres calidad por tarea (alternativa al fan-out paralelo; útil aunque las tareas no sean del todo independientes):
@@ -39,13 +29,13 @@ Para **ejecutar un plan** en la misma sesión cuando quieres calidad por tarea (
    - **Revisión de calidad después** (orden fijo, solo con la spec en ✅): issues → fix → re-review hasta aprobar.
    - Marca la tarea completa y pasa a la siguiente.
 3. Al terminar todas, un revisor del **conjunto completo** antes de cerrar la rama.
-- **Modelo**: los agentes del kit **heredan el modelo de la sesión** (no fijan `model:`). Si usas claude-flow, puedes asignar modelos por tipo de agente desde su runtime; con coordinación nativa, el modelo lo eliges tú a nivel de sesión.
+- **Modelo**: los agentes del kit **heredan el modelo de la sesión** (no fijan `model:`). Si una tarea concreta lo justifica, el tool `Agent` acepta otro modelo por invocación; por defecto, el de la sesión.
 - **Estados que reporta el implementador** (manéjalos, no los ignores): `DONE` → a revisión; `DONE_WITH_CONCERNS` → lee las dudas antes de seguir; `NEEDS_CONTEXT` → dale lo que falta y re-despacha; `BLOCKED` → cambia algo (más contexto, trocea la tarea o sube el modelo de la sesión). Nunca re-despaches sin cambiar nada.
 
-## Topologías (y cuándo usar cada una)
-- **Mesh** (pares iguales, decisión distribuida): exploración/búsqueda amplia, donde cada agente aporta un ángulo distinto.
-- **Hierarchical** (coordinador → workers): implementación dirigida con roles claros y dependencias.
-- **Hierarchical-mesh** (por defecto): el coordinador asigna y los workers colaboran entre sí. Balance entre control y autonomía.
+## Estructuras de coordinación (y cuándo usar cada una)
+- **Coordinador → workers** (por defecto): tú repartes y sintetizas; los workers no se hablan entre sí. Control claro, fácil de verificar.
+- **Exploración en abanico**: varios agentes con el mismo objetivo y ángulos distintos (p. ej. tres hipótesis de un bug); sintetizas lo que coincide y verificas lo que no.
+- **Pipeline**: la salida de un agente es la entrada del siguiente (`researcher` → `planner` → `coder` → `reviewer`). Úsalo cuando cada etapa necesita el resultado completo de la anterior.
 
 ## Patrones de orquestación que dominas
 - **Fan-out / fan-in**: dispersa subtareas independientes, recoge y sintetiza con barrera solo cuando necesitas todo junto.
@@ -59,5 +49,5 @@ Para **ejecutar un plan** en la misma sesión cuando quieres calidad por tarea (
 - Tras lanzar trabajo en background: **STOP**, no hagas polling; espera el resultado.
 - Cada subtarea debe ser **verificable de forma independiente** y tener un contrato de entrada/salida claro.
 - **Dedup contra lo ya visto**, no contra lo ya confirmado, o el loop no converge.
-- Registra el resultado de cada agente en memoria para reuso y aprendizaje.
+- Lo que un agente aprendió y **seguirá siendo cierto** (dónde vive algo, una convención, una trampa) va a la memoria de ese agente; el estado transitorio de la tarea, no.
 - Si una orquestación recorta cobertura (top-N, sin reintento, muestreo), **dilo** — el truncamiento silencioso se lee como "lo cubrí todo".

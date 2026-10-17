@@ -1,8 +1,8 @@
 # Dev Starter Kit — base coherente de Claude para todos los proyectos
 
 Configuración `.claude` unificada para backend, frontend, mobile y blockchain. El objetivo es
-**coherencia**: una capa base común a todos los proyectos + particularidades por stack, con un
-**enjambre híbrido** (claude-flow cuando está, coordinación nativa cuando no).
+**coherencia**: una capa base común a todos los proyectos + particularidades por stack, con
+**orquestación multiagente nativa** de Claude Code (sin runtimes de terceros).
 
 ## Estructura
 
@@ -46,8 +46,9 @@ node /ruta/al/kit/install.js
 ```
 
 Flags: `--stack backend/nestjs` (fuerza stack) · `--yes` (no interactivo, conservador) ·
-`--all` (acepta TODO: flow + externos + deps; combínalo con `--yes` para desatendido total) ·
-`--no-flow` · `--no-external` · `--update`/`--force` (trae la última capa base sin pisar lo que hayas editado) · `--dry-run` (simula) · `--help`.
+`--all` (acepta TODO: externos + deps; combínalo con `--yes` para desatendido total) ·
+`--no-external` · `--update`/`--force` (trae la última capa base sin pisar lo que hayas editado) · `--dry-run` (simula) · `--help`.
+`--no-flow` se sigue aceptando para no romper scripts, pero ya no hace nada.
 
 El instalador:
 1. **Detecta el stack** (pubspec→flutter, react-native, next, angular, nest, foundry, `.csproj`/`.sln`→dotnet, Spring, django, composer→php, fastapi, react, express).
@@ -59,7 +60,7 @@ El instalador:
 3. Aplica la **capa base** (`shared/.claude` → `.claude/`): agentes, skills, helpers, settings, comandos.
 4. Scaffolda **`CLAUDE.project.md`** y compone **`./CLAUDE.md`** = `@CLAUDE.project.md` + `@.claude/CLAUDE.base.md` + común + stack (bloque gestionado idempotente).
 5. Actualiza **`.gitignore`** (memoria/runtime/backups/secretos), idempotente. Los ejemplos de env (`.env.example`, `.env.sample`, `.env.template`) quedan **versionados**: van negados después de `.env.*`.
-6. (opcional) Ejecuta **`claude-flow init`** para el enjambre real (primero; la capa va encima sin pisarlo).
+6. **Avisa de restos de Ruflo** (claude-flow) si los encuentra: servidores en `.mcp.json`, `.claude-flow/`, `.swarm/`, archivos en `.claude/` o instrucciones en `CLAUDE.md`. Solo los enumera con el comando para quitarlos; no borra nada que no instaló el kit.
 7. (opcional) Instala **agentes/skills externos** curados vía `claude-code-templates` y deps npm por stack.
    - Los **git hooks** (husky + lint-staged + commitlint) se omiten si el directorio no es un repositorio git: `npx husky init` fallaría y dejaría las devDeps instaladas para nada.
 8. Indica los **plugins de Claude Code** a añadir (shared + por-stack).
@@ -80,7 +81,7 @@ Con `--yes` el stack debe ser detectable o venir en `--stack`; si no, sale con *
 **Core**: `planner` · `researcher` · `coder` · `tester` · `reviewer`
 **Especialistas**: `backend-developer` · `security-engineer` · `api-security-audit` · `penetration-tester` (solo autorizado) · `monitoring-specialist` · `api-architect` · `ui-designer` · `seo-specialist` · `ux-researcher`
 
-En modo claude-flow se omiten solo los 5 core (los cubre `agents/core/*` de claude-flow); los especialistas se conservan. Además, el kit instala por stack agentes/skills externos curados (`frontend-developer`, `database-architect`, `test-engineer`, etc.) vía claude-code-templates.
+Además, el kit instala por stack agentes/skills externos curados (`frontend-developer`, `database-architect`, `test-engineer`, etc.) vía claude-code-templates.
 
 ## Skills incluidas (capa base)
 
@@ -125,19 +126,22 @@ del repo ya lo cubre. Si un comando se bloquea, la respuesta correcta es replant
 Como defensa en profundidad, `settings.json` deniega además `sudo`, `publish`, `chmod 777` y la lectura
 de `~/.ssh` y `~/.aws` por permisos, para el caso de que los hooks estén desactivados.
 
-## Enjambre híbrido
+## Orquestación multiagente (nativa)
 
-- **Con claude-flow** (`npx claude-flow init`): runtime real de coordinación, memoria semántica, aprendizaje.
-- **Sin claude-flow**: coordinación nativa con el `Task`/`Agent` tool y memoria local. Misma skill `swarm-orchestration`.
+Todo con herramientas de Claude Code: el tool `Agent` para lanzar subagentes en paralelo, los
+agentes de `.claude/agents/`, worktrees para aislar a los que escriben (skill `git-worktrees`) y
+la memoria de agente para lo que deba sobrevivir a la sesión. La skill `swarm-orchestration` y el
+comando `/swarm` dan el método: descomponer con `planner`, lanzar en un solo mensaje, pasar el
+contexto exacto a cada subagente y verificar con `reviewer` antes de integrar.
 
-**Orden de capas (importante):** claude-flow es dueño del runtime, así que el instalador lo ejecuta
-**primero** y luego aplica nuestra capa **encima** con *skip-existing*. En modo flow:
-- Se **respetan** `settings.json`, `helpers/*` y `.mcp.json` de claude-flow (no se pisan).
-- Se **omiten** nuestros 5 agentes core (los cubre `agents/core/*` de claude-flow) para no duplicar nombres.
-- Se **añaden** sin chocar: `CLAUDE.base.md`, skills de workflow (`tdd`/`diagnose`/`grill-me`/`handoff`), comando `/swarm`,
-  y nuestro bloque gestionado se **anexa** al `CLAUDE.md` de claude-flow.
+**Ruflo (claude-flow) ya no se integra.** Hasta la 2.x el kit podía ejecutar `claude-flow init`
+como "enjambre híbrido". Se retiró porque no es estándar: trae su propio runtime, servidores MCP,
+decenas de archivos en `.claude/` y hooks que corren en cada sesión, y la coordinación nativa
+cubre lo que usábamos. Si un proyecto lo tenía:
 
-Sin claude-flow, nuestra capa aporta el runtime completo (settings + helpers + agentes core + skills).
+- `--update` retira de `settings.json` todo lo que apunte a Ruflo (permisos, hooks, env) y lo informa.
+- El resto (servidores en `.mcp.json`, `.claude-flow/`, `.swarm/`, sus archivos en `.claude/`) se
+  **enumera** con el comando para quitarlo, pero no se borra: no lo instaló el kit directamente.
 
 ## Componentes externos (curados, ver `components.json`)
 
@@ -151,7 +155,7 @@ Sin claude-flow, nuestra capa aporta el runtime completo (settings + helpers + a
 **Opcionales** (en `components.json` pero *no* se instalan solos; añádelos a mano si los quieres):
 `architect-review` (backend) y `senior-frontend` (frontend).
 
-**Descartados** (extracto; los 10 con su motivo están en `components.json` → `discarded`):
+**Descartados** (extracto; los 11 con su motivo están en `components.json` → `discarded`):
 - `claude-mem` — duplica nuestra memoria y registra hooks propios.
 - `mcp-expert` — atado al repo del CLI de davila7.
 - hooks de claude-code-templates (`lint-on-save`, `smart-formatting`, `security-scanner`, `tdd-gate`) —
@@ -183,7 +187,7 @@ que tú editaste:
 El `settings.json` merece detalle porque es el que la gente personaliza: la unión de `permissions`
 es sin duplicados, en `hooks` el kit solo reemplaza **sus** entradas (las que apuntan a sus helpers)
 y las tuyas siguen ahí, en `env` ganan tus valores, y si tu `statusLine` apunta a otro script se
-respeta. Si claude-flow es dueño del runtime, su `settings.json` no se toca ni se fusiona.
+respeta. La única excepción es lo que apunta a Ruflo (claude-flow): se retira y se informa.
 
 Se sigue haciendo backup en `.claude.backup.<timestamp>` antes de cualquier cambio, pero ya no
 deberías necesitarlo. El bloque gestionado de `CLAUDE.md` es idempotente en cualquier caso.

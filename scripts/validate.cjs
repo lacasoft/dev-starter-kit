@@ -130,6 +130,24 @@ for (const f of esmxFiles) {
     });
 }
 
+// --- Ruflo (claude-flow) retirado: que no vuelva a colarse ---
+// El kit dejó de integrarlo en la versión 3. Lo que se instala en los proyectos (shared/, stacks/)
+// no puede mencionarlo; el instalador sí, porque lo detecta y lo retira, y components.json solo
+// en `discarded`, donde queda el motivo.
+const RUFLO = /claude[-_]?flow|ruflo|ruv-swarm|flow-nexus|hierarchical-mesh/i;
+for (const f of walk(path.join(ROOT, "shared"), () => true).concat(walk(path.join(ROOT, "stacks"), () => true))) {
+  fs.readFileSync(f, "utf8")
+    .split(/\r?\n/)
+    .forEach((ln, i) => {
+      if (RUFLO.test(ln)) errors.push(`${rel(f)}:${i + 1}: menciona Ruflo/claude-flow, retirado del kit`);
+    });
+}
+if (parsed["components.json"]) {
+  const { discarded, ...resto } = parsed["components.json"];
+  if (RUFLO.test(JSON.stringify(resto))) errors.push("components.json: menciona Ruflo/claude-flow fuera de `discarded`");
+  else ok.push("sin Ruflo/claude-flow en lo que se instala");
+}
+
 // --- README ↔ realidad ---
 // El README se desvía en silencio si nadie lo mira: llegó a listar helpers borrados dos releases
 // antes, 9 de 13 stacks y "los 8 stacks" del CI. Aquí lo que afirma se comprueba contra el repo.

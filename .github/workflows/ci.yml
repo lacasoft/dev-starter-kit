@@ -27,7 +27,7 @@ jobs:
           for s in $(node scripts/stacks.cjs); do
             echo "--- $s ---"
             tmp="$(mktemp -d)"
-            ( cd "$tmp" && node "$GITHUB_WORKSPACE/install.js" --yes --no-flow --no-external --stack "$s" --dry-run >/dev/null )
+            ( cd "$tmp" && node "$GITHUB_WORKSPACE/install.js" --yes --no-external --stack "$s" --dry-run >/dev/null )
             rm -rf "$tmp"
           done
           echo "✅ instalador OK en todos los stacks ($(node scripts/stacks.cjs | wc -l))"

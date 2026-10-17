@@ -2,7 +2,7 @@
   "name": "@lacasoft/dev-starter-kit",
   "version": "2.1.0",
   "private": true,
-  "description": "Base .claude coherente (agentes, skills, helpers, enjambre híbrido) instalable en cualquier proyecto lacasoft (backend/frontend/mobile/blockchain).",
+  "description": "Base .claude coherente (agentes, skills, helpers, orquestación multiagente nativa) instalable en cualquier proyecto lacasoft (backend/frontend/mobile/blockchain).",
   "bin": {
     "lacasoft-kit": "install.js"
   },

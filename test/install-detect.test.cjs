@@ -23,7 +23,7 @@ function detectar(archivos) {
     fs.mkdirSync(path.dirname(destino), { recursive: true });
     fs.writeFileSync(destino, contenido);
   }
-  const r = spawnSync("node", [INSTALL, "--yes", "--no-flow", "--no-external", "--dry-run"], {
+  const r = spawnSync("node", [INSTALL, "--yes", "--no-external", "--dry-run"], {
     cwd: dir,
     input: "",
     encoding: "utf8",

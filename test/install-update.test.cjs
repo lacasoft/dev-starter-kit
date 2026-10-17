@@ -12,7 +12,7 @@ const path = require("node:path");
 const INSTALL = path.join(__dirname, "..", "install.js");
 
 function instalar(cwd, extra = []) {
-  const r = spawnSync("node", [INSTALL, "--yes", "--stack", "backend/nestjs", "--no-external", "--no-flow", ...extra], {
+  const r = spawnSync("node", [INSTALL, "--yes", "--stack", "backend/nestjs", "--no-external", ...extra], {
     cwd,
     input: "",
     encoding: "utf8",
@@ -43,7 +43,7 @@ test("--update FUSIONA settings.json y conserva todo lo del usuario", () => {
   const s = leerJSON(sp);
   s.permissions.allow.push("Bash(mi-comando-propio *)");
   s.permissions.deny.push("Bash(terraform destroy*)");
-  s.env.MI_VARIABLE = "valor-mio";
+  s.env = { ...(s.env || {}), MI_VARIABLE: "valor-mio" };
   s.model = "opus"; // clave que el kit no conoce
   s.hooks.PreToolUse.push({ matcher: "Bash", hooks: [{ type: "command", command: "echo hook-mio", timeout: 3 }] });
   fs.writeFileSync(sp, JSON.stringify(s, null, 2));
@@ -92,6 +92,60 @@ test("--update conserva lo tuyo y deja la versión nueva como .kit-new cuando ca
   assert.ok(fs.existsSync(`${agente}.kit-new`), "la versión del kit queda al lado como .kit-new");
   assert.match(salida, /kit-new/, "el informe debe avisar del conflicto");
   assert.match(salida, /diff /, "el informe debe dar el comando para comparar");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// Ruflo (claude-flow) se retiró del kit. Lo que dejó en settings.json (los permisos y el env que
+// ponía el kit, y los hooks de su `init`) se retira en --update; el resto solo se avisa.
+test("--update retira de settings.json lo que apunta a Ruflo y conserva lo demás", () => {
+  const dir = proyecto();
+  const sp = path.join(dir, ".claude", "settings.json");
+  const s = leerJSON(sp);
+  s.permissions.allow.push("mcp__claude-flow__*", "Bash(npx claude-flow*)", "Bash(mi-comando-propio *)");
+  s.env = { CLAUDE_FLOW_HOOKS_ENABLED: "true", MI_VARIABLE: "valor-mio" };
+  s.claudeFlow = { topology: "hierarchical-mesh" };
+  s.hooks.PreToolUse.push({ matcher: "Bash", hooks: [{ type: "command", command: "npx claude-flow@alpha hooks pre-command" }] });
+  fs.writeFileSync(sp, JSON.stringify(s, null, 2));
+
+  const salida = instalar(dir, ["--update"]);
+
+  const out = leerJSON(sp);
+  const texto = JSON.stringify(out);
+  assert.doesNotMatch(texto, /claude-flow|claudeFlow|CLAUDE_FLOW/i, "no debe quedar nada de Ruflo");
+  assert.ok(out.permissions.allow.includes("Bash(mi-comando-propio *)"), "tus permisos siguen");
+  assert.equal(out.env.MI_VARIABLE, "valor-mio", "tu env sigue");
+  assert.match(salida, /Retirado de settings\.json/, "el informe debe decir qué retiró");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("avisa de los restos de Ruflo sin borrarlos", () => {
+  const dir = proyecto();
+  fs.writeFileSync(path.join(dir, ".mcp.json"), JSON.stringify({ mcpServers: { "claude-flow": { command: "npx" }, otro: { command: "x" } } }));
+  fs.mkdirSync(path.join(dir, ".claude-flow"));
+  fs.mkdirSync(path.join(dir, ".claude", "agents", "core"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".claude", "agents", "core", "swarm.md"), "Usa mcp__claude-flow__swarm_init");
+
+  const salida = instalar(dir);
+
+  assert.match(salida, /Restos de Ruflo/);
+  assert.match(salida, /servidor "claude-flow"/);
+  assert.doesNotMatch(salida, /servidor "otro"/, "un servidor ajeno a Ruflo no se señala");
+  assert.match(salida, /\.claude-flow\//);
+  assert.match(salida, /agents\/core\/swarm\.md/);
+  assert.ok(fs.existsSync(path.join(dir, ".claude-flow")), "no borra lo que no instaló el kit");
+  assert.ok(fs.existsSync(path.join(dir, ".mcp.json")));
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("un proyecto sin Ruflo no recibe el aviso (los archivos del kit no cuentan)", () => {
+  const dir = proyecto();
+  assert.doesNotMatch(instalar(dir, ["--update"]), /Restos de Ruflo/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("--no-flow se acepta, avisa y no rompe", () => {
+  const dir = proyecto();
+  assert.match(instalar(dir, ["--no-flow"]), /--no-flow ya no hace nada/);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

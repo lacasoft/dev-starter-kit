@@ -39,16 +39,15 @@ stacks/<categoria>/{_common,<stack>}/.claude/CLAUDE.md   # overlays por stack
 1. Crea `shared/.claude/agents/<nombre>.md` con frontmatter:
    ```yaml
    ---
-   name: <nombre-kebab>            # único; NO uses coder/planner/reviewer/tester/researcher (los cubre claude-flow)
-   description: "<cuándo usarlo + 2 bloques <example>>"
+   name: <nombre-kebab>            # único; no repitas el de un agente existente
+   description: "<cuándo usarlo + un bloque <example>>"
    tools: Read, Write, Edit, Bash, Glob, Grep
-   model: sonnet
    ---
    ```
+   Sin `model:`: los agentes del kit heredan el modelo de la sesión.
 2. Cuerpo en **español**, profundidad senior: persona → dominio → metodología → reglas → salida → integración (referencia solo a agentes que existen).
-3. NO reintroduzcas `context-manager` ni protocolos JSON de coordinación.
-4. Si el nombre coincide con uno de los 5 core, el instalador lo omite en modo claude-flow (a propósito). Para que sobreviva, usa otro nombre.
-5. `npm run validate`.
+3. NO reintroduzcas `context-manager`, protocolos JSON de coordinación ni runtimes de orquestación de terceros: la coordinación es nativa (tool `Agent`).
+4. `npm run validate`.
 
 ## Añadir una SKILL
 
@@ -88,5 +87,5 @@ Edita `components.json`:
 npm run validate                                  # integridad
 node install.js --stack backend/nestjs --dry-run  # simula sin escribir
 # en un proyecto de prueba real:
-cd /tmp/proyecto && node /ruta/al/kit/install.js --yes --no-flow --no-external
+cd /tmp/proyecto && node /ruta/al/kit/install.js --yes --no-external
 ```

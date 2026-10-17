@@ -4,6 +4,16 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](htt
 
 ## [No publicado]
 
+> **Cambio incompatible**: se retira Ruflo (claude-flow). La próxima versión es **3.0.0**.
+
+### Removed
+- **Ruflo (claude-flow) deja de integrarse.** Era el modo "enjambre híbrido": el instalador podía ejecutar `claude-flow init`, que se volvía dueño del `settings.json`, añadía servidores MCP (`claude-flow`, `ruv-swarm`, `flow-nexus`) y decenas de archivos en `.claude/`, y obligaba a la capa base a omitir sus 5 agentes core para no chocar. No es estándar y la coordinación nativa de Claude Code (tool `Agent`, worktrees, memoria de agente) cubre lo que usábamos. Se quitan: el paso de `init` y el flag `--no-flow` (se sigue aceptando, avisa y no hace nada), los permisos `mcp__claude-flow__*`/`claude-flow*`, el env `CLAUDE_FLOW_HOOKS_ENABLED`, los hooks sin efecto que existían para él (`post-bash`, `post-task`, `notify`), el modo A de `swarm-orchestration` y su vocabulario de topologías, y `.claude-flow/`/`.swarm/` del `.gitignore` que escribe el instalador. Queda en `components.json` → `discarded` con el motivo.
+
+### Changed
+- **`--update` retira de `settings.json` todo lo que apunte a Ruflo** (permisos, hooks, env y claves como `claudeFlow`), incluidos los hooks que dejó su `init`, y dice qué retiró. Es la única excepción a "tus permisos, hooks y env se conservan": lo puso el kit o un runtime que el kit ejecutó, y dejarlo haría que cada sesión siguiera llamando a algo que ya no se usa.
+- **El instalador avisa de los restos de Ruflo** que encuentra (servidores en `.mcp.json`, `.claude-flow/`, `.swarm/`, `.hive-mind/`, archivos en `.claude/` que lo mencionan, instrucciones en `CLAUDE.md` fuera del bloque gestionado) con el comando para quitarlos. No borra nada que no instaló él mismo.
+- **`validate.cjs` impide que vuelva a colarse**: falla si algo de `shared/` o `stacks/` menciona Ruflo/claude-flow, o si `components.json` lo menciona fuera de `discarded`.
+
 ### Added
 - **Estándares de C# en el agente `coder`.** "Estándares por lenguaje" cubría TypeScript, Python, Go, Rust, Solidity, PHP, Java y Dart, pero **no C#**, pese a existir un stack `backend/dotnet` completo y a que la regla de nombres ya lo mencionaba. Se añade su sección (nullable reference types, `record`/`sealed`, `async` sin `.Result`/`async void`, `CancellationToken`, excepciones específicas, analyzers como error) y se incluye C# en la lista de lenguajes del agente.
 - **Overlays de Spring, .NET y Angular más profundos.** Spring: virtual threads y `@Async` con executor explícito, Resilience4j, `@Cacheable` con clave y TTL, Actuator + Micrometer, `readOnly` en lecturas, la trampa del proxy de `@Transactional` en llamadas internas, y slices de test frente a `@SpringBootTest`. .NET: `CancellationToken` propagado, `IHttpClientFactory` con typed clients y resiliencia, `HybridCache`, OpenTelemetry y health checks, `MapGroup` con filtros, la captura de `Scoped` desde `Singleton`, `Nullable`/`TreatWarningsAsErrors`, y sustitución de dependencias vía `ConfigureTestServices`. Angular: `@defer`, `computed` frente a `effect`, `linkedSignal`, rutas lazy con guards funcionales y `withComponentInputBinding`, interceptores funcionales, formularios reactivos tipados, `NgOptimizedImage`, accesibilidad y presupuestos de bundle.

@@ -2,12 +2,6 @@
   "version": "2.0.0",
   "description": "Manifiesto de componentes externos curados. El instalador (install.js) los aplica por stack. Revisados uno a uno antes de integrar.",
 
-  "claudeFlow": {
-    "enabled": true,
-    "initCommand": "npx -y claude-flow@3.10.41 init --force",
-    "note": "Enjambre híbrido. Instala el runtime real (MCP + agentes + hooks de claude-flow). Opcional al aplicar."
-  },
-
   "cctCli": "npx -y claude-code-templates@1.28.16",
 
   "shared": {
@@ -24,7 +18,7 @@
     ],
     "pluginsOptional": [
       { "id": "code-review@claude-plugins-official", "why": "review automatizado de PRs" },
-      { "id": "context7-plugin@context7-marketplace", "marketplace": "upstash/context7", "rec": "opcional", "why": "MCP remoto (https://mcp.context7.com/mcp) que inyecta docs versionadas de librerías. Sin API key obligatoria (free tier; la key gratis solo sube rate limits). No pisa el .mcp.json de claude-flow (servidor namespaced 'context7' dentro del plugin). Transversal a todos los stacks. Privacidad: solo viaja el nombre de librería + la pregunta, nunca metas secretos ni código propietario en la query." }
+      { "id": "context7-plugin@context7-marketplace", "marketplace": "upstash/context7", "rec": "opcional", "why": "MCP remoto (https://mcp.context7.com/mcp) que inyecta docs versionadas de librerías. Sin API key obligatoria (free tier; la key gratis solo sube rate limits). No toca el .mcp.json del proyecto (servidor namespaced 'context7' dentro del plugin). Transversal a todos los stacks. Privacidad: solo viaja el nombre de librería + la pregunta, nunca metas secretos ni código propietario en la query." }
     ]
   },
 
@@ -116,6 +110,7 @@
   },
 
   "discarded": {
+    "ruvnet/claude-flow (Ruflo)": "RETIRADO en la versión 3 (antes era el modo 'enjambre híbrido'). No es estándar: trae su propio runtime, servidores MCP (claude-flow, ruv-swarm, flow-nexus), decenas de archivos en .claude/ y hooks que se ejecutan en cada sesión, y su `init --force` es dueño del settings.json del proyecto. La coordinación nativa de Claude Code (tool Agent, worktrees, memoria de agente) cubre lo que usábamos. El instalador ya no lo ejecuta, retira sus entradas de settings.json en --update y avisa de los restos que encuentre, sin borrarlos.",
     "obra/superpowers (plugin completo)": "DESTILADO (ver distilled); NO instalar el plugin entero: su hook SessionStart inyecta un bloque grande en cada sesión y su registro ('your human partner', tono '<EXTREMELY_IMPORTANT>') choca con nuestro estilo sobrio en español; sus skills están acopladas por cross-refs internas. Destilamos los patrones, no los enlaces.",
     "Hainrixz/cyber-neo (skill completa)": "DESTILADO (ver distilled); NO instalar la skill entera: solapa con ship-gate, escribe el reporte en ~/Desktop y trae branding de comunidad. Aprovechamos su knowledge base (CWE/OWASP/secretos/CI-CD), no su orquestación ni references largos por lenguaje.",
     "Leonxlnx/taste-skill (imagegen/stitch/variantes)": "DESTILADA solo taste-skill/SKILL.md (ver distilled); descartadas imagegen-frontend-web/mobile, brandkit, image-to-code y stitch-skill (requieren ChatGPT Images/Google Stitch externos; generan imágenes, no código), taste-skill-v1 y gpt-tasteskill (variantes legacy/atadas a otro agente), y research/laziness (trata de truncación de output, no de diseño; mezcla estudios con afirmaciones sin cita).",
