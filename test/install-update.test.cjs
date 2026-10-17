@@ -104,6 +104,7 @@ test("--update retira de settings.json lo que apunta a Ruflo y conserva lo demá
   s.permissions.allow.push("mcp__claude-flow__*", "Bash(npx claude-flow*)", "Bash(mi-comando-propio *)");
   s.env = { CLAUDE_FLOW_HOOKS_ENABLED: "true", MI_VARIABLE: "valor-mio" };
   s.claudeFlow = { topology: "hierarchical-mesh" };
+  s.enabledMcpjsonServers = ["claude-flow", "ruv-swarm", "github"];
   s.hooks.PreToolUse.push({ matcher: "Bash", hooks: [{ type: "command", command: "npx claude-flow@alpha hooks pre-command" }] });
   fs.writeFileSync(sp, JSON.stringify(s, null, 2));
 
@@ -114,7 +115,9 @@ test("--update retira de settings.json lo que apunta a Ruflo y conserva lo demá
   assert.doesNotMatch(texto, /claude-flow|claudeFlow|CLAUDE_FLOW/i, "no debe quedar nada de Ruflo");
   assert.ok(out.permissions.allow.includes("Bash(mi-comando-propio *)"), "tus permisos siguen");
   assert.equal(out.env.MI_VARIABLE, "valor-mio", "tu env sigue");
+  assert.deepEqual(out.enabledMcpjsonServers, ["github"], "los servidores MCP ajenos a Ruflo siguen habilitados");
   assert.match(salida, /Retirado de settings\.json/, "el informe debe decir qué retiró");
+  assert.doesNotMatch(salida, /Restos de Ruflo/, "tras retirarlo, settings.json ya no cuenta como resto");
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

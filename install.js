@@ -376,6 +376,13 @@ function mergeSettings(kitPath, destPath, retired = []) {
     if (isRuflo(k)) {
       delete out[k];
       retired.push(`clave "${k}"`);
+    } else if (Array.isArray(out[k]) && !["hooks", "permissions"].includes(k)) {
+      // p. ej. enabledMcpjsonServers: ["claude-flow", "ruv-swarm", "github"]
+      const limpio = out[k].filter((v) => !isRuflo(v));
+      if (limpio.length !== out[k].length) {
+        retired.push(`${k}: ${out[k].filter(isRuflo).join(", ")}`);
+        out[k] = limpio;
+      }
     }
   }
 
@@ -468,8 +475,9 @@ function reportLayer(ctx) {
   if (ctx.merged) l.push("settings.json fusionado");
   if (l.length) console.log(`  📋 ${l.join(" · ")}`);
   if (ctx.retiredSettings.length) {
-    console.log(`\n  🧹 Retirado de settings.json por apuntar a Ruflo (claude-flow): ${ctx.retiredSettings.join(" · ")}`);
-    console.log("     Si lo necesitabas, está en el backup .claude.backup.* de esta ejecución.");
+    const dry = FLAGS.dryRun ? "(dry-run) " : "";
+    console.log(`\n  ${dry}🧹 Retirado de settings.json por apuntar a Ruflo (claude-flow): ${[...new Set(ctx.retiredSettings)].join(" · ")}`);
+    if (!FLAGS.dryRun) console.log("     Si lo necesitabas, está en el backup .claude.backup.* de esta ejecución.");
   }
   if (ctx.conflicts.length) {
     console.log(`\n  ⚠️  ${ctx.conflicts.length} archivo(s) con cambios que no instaló el kit: se conservan intactos.`);
@@ -496,7 +504,11 @@ function rufloLeftovers(kitFiles = {}) {
     if (fs.existsSync(path.join(CWD, d))) found.push(`${d}/ → rm -rf ${d}`);
   }
   if (fileHas(path.join(CWD, ".claude", "settings.json"), RUFLO)) {
-    found.push(".claude/settings.json: hooks/permisos de Ruflo → se retiran con --update");
+    found.push(
+      FLAGS.update && !FLAGS.dryRun
+        ? ".claude/settings.json: sigue mencionando Ruflo en algo que el kit no gestiona → revísalo a mano"
+        : ".claude/settings.json: hooks/permisos de Ruflo → se retiran con --update"
+    );
   }
   const enClaude = [];
   const queue = [path.join(CWD, ".claude")];
@@ -511,7 +523,8 @@ function rufloLeftovers(kitFiles = {}) {
     for (const e of entries) {
       const p = path.join(dir, e.name);
       if (e.isDirectory()) {
-        if (e.name !== "memory" && !e.name.startsWith(".claude.backup")) queue.push(p);
+        // La memoria (de agente o la antigua) es contenido, no configuración: no cuenta como resto.
+        if (!["memory", "agent-memory", "agent-memory-local"].includes(e.name)) queue.push(p);
       } else if (
         e.name !== "settings.json" &&
         !kitFiles[path.relative(path.join(CWD, ".claude"), p).split(path.sep).join("/")] &&
