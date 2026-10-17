@@ -59,7 +59,7 @@ stacks/<categoria>/{_common,<stack>}/.claude/CLAUDE.md   # overlays por stack
 
 ## Añadir un STACK
 
-1. Crea `stacks/<categoria>/<stack>/.claude/CLAUDE.md` (overlay específico). Si la categoría es nueva, crea también `stacks/<categoria>/_common/.claude/CLAUDE.md`.
+1. Crea `stacks/<categoria>/<stack>/.claude/CLAUDE.md` (overlay específico). Si la categoría es nueva, crea también `stacks/<categoria>/_common/.claude/CLAUDE.md`. El instalador los copia como reglas a `.claude/rules/kit/` (en monorepo, con `paths:` a la carpeta del stack): escríbelos para que se entiendan solos, sin suponer que van pegados a la baseline.
 2. Registra el id en `install.js`:
    - Añádelo al objeto `STACKS`.
    - Añade su regla en `detectStack()` (archivo/dep delator).
@@ -92,6 +92,7 @@ Borra el archivo de `shared/.claude/` sin más: en `--update`, el instalador ret
 ```bash
 npm run validate                                  # integridad
 node install.js --stack backend/nestjs --dry-run  # simula sin escribir
+node install.js --stack backend/nestjs:apps/api,frontend/nextjs:apps/web --dry-run  # monorepo
 # en un proyecto de prueba real:
 cd /tmp/proyecto && node /ruta/al/kit/install.js --yes --no-external
 ```

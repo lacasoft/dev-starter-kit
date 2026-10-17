@@ -1,7 +1,7 @@
 # BASELINE UNIVERSAL — Reglas para CUALQUIER proyecto
 
-> Esta es la capa común a todos los proyectos (backend, frontend, mobile). Cada stack
-> añade su propio `CLAUDE.md` que importa este archivo y agrega particularidades.
+> Esta es la capa común a todos los proyectos (backend, frontend, mobile). Las particularidades
+> de cada stack van en `.claude/rules/kit/` (en un monorepo, cada una acotada a su carpeta).
 > El objetivo es **coherencia**: cualquier desarrollo, nuevo o heredado, se comporta igual.
 
 ---
@@ -169,4 +169,4 @@ Esto no es solo documentación: el hook `pre-bash` (`helpers/hook-handler.cjs`) 
 
 ---
 
-> Reglas específicas de lenguaje/framework: ver el `CLAUDE.md` del stack (importa este archivo con `@.claude/CLAUDE.base.md`).
+> Reglas específicas de lenguaje/framework: `.claude/rules/kit/<categoría>.md` y `<categoría>-<stack>.md`. Las genera el instalador; si contradicen algo de aquí, manda la del stack para su carpeta.

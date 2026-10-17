@@ -5,7 +5,8 @@
  * Hace:
  *  1. Detecta el stack (category/stack) o lo pides tú.
  *  2. Backup de .claude/ y copia la capa base (shared/.claude → .claude): agentes, skills, helpers, settings, comandos.
- *  3. Scaffolda CLAUDE.project.md y compone ./CLAUDE.md (project + base + común + stack) en bloque gestionado.
+ *  3. Scaffolda CLAUDE.project.md, compone ./CLAUDE.md (project + base) en bloque gestionado y escribe los
+ *     overlays del stack como reglas en .claude/rules/kit/ (en monorepo, acotadas a la carpeta de cada stack).
  *  4. Actualiza .gitignore (memoria/runtime/backups/secretos).
  *  5. Avisa de restos de Ruflo (claude-flow): el kit ya no lo integra.
  *  6. (opcional) Instala agentes/skills externos curados (claude-code-templates) y deps npm por stack.
@@ -13,7 +14,8 @@
  *  8. Imprime un resumen del proyecto (stack, tests, calidad, entrega, git, entorno) y sus huecos.
  *
  * Flags:
- *   --stack <cat/stack>  fuerza el stack (si no, autodetecta)
+ *   --stack <cat/stack>[:dir][,…]  fuerza el stack (si no, autodetecta). En monorepo, uno por carpeta:
+ *                                  --stack backend/nestjs:apps/api,frontend/nextjs:apps/web
  *   --yes, -y            no interactivo: usa el default de cada confirmación
  *   --all                acepta TODO (externos + deps). Combina con --yes para desatendido total
  *   --no-external        no instala componentes externos (claude-code-templates / npm)
@@ -39,12 +41,11 @@ const FLAGS = {
   update: argv.includes("--update") || argv.includes("--force"),
   dryRun: argv.includes("--dry-run"),
   help: argv.includes("--help") || argv.includes("-h"),
-  stack:
-    argv.includes("--stack") &&
-    argv[argv.indexOf("--stack") + 1] &&
-    !argv[argv.indexOf("--stack") + 1].startsWith("--")
-      ? argv[argv.indexOf("--stack") + 1]
-      : null,
+  // --stack se puede repetir y admite listas: --stack backend/nestjs:apps/api,frontend/nextjs:apps/web
+  stackArgs: argv
+    .flatMap((a, i) => (a === "--stack" && argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[i + 1].split(",") : []))
+    .map((s) => s.trim())
+    .filter(Boolean),
 };
 
 if (FLAGS.help) {
@@ -54,6 +55,8 @@ Dev Starter Kit — instalador (.claude)
 Uso:  node install.js [opciones]
 
   --stack <cat/stack>  fuerza el stack (backend/nestjs, frontend/react, mobile/flutter, ...)
+                       En monorepo, uno por carpeta: --stack backend/nestjs:apps/api,frontend/nextjs:apps/web
+                       (cada overlay se carga solo al trabajar en su carpeta)
   --yes, -y            no interactivo: usa el default de cada confirmación (conservador)
   --all                acepta TODO (externos + deps). Usa "--yes --all" para desatendido total
   --no-external        no instala componentes externos
@@ -71,7 +74,7 @@ Sin TTY (CI, agentes, tuberías) puedes pipear las respuestas una por línea
 Con --yes el stack debe ser detectable o venir en --stack, o sale con error.
 
 Hace: backup de .claude → aplica capa base (agentes/skills/helpers/settings) →
-      compone CLAUDE.md (base+común+stack) + CLAUDE.project.md → actualiza .gitignore →
+      compone CLAUDE.md + CLAUDE.project.md + reglas del stack → actualiza .gitignore →
       avisa de restos de Ruflo → (opc.) externos → indica plugins de Claude Code.
 `);
   process.exit(0);
@@ -176,11 +179,10 @@ const JAVA_BUILD_FILES = ["pom.xml", "build.gradle", "build.gradle.kts", "settin
 const javaBuildFiles = (dir = CWD) => JAVA_BUILD_FILES.filter((f) => fs.existsSync(path.join(dir, f)));
 
 // Directorios que nunca contienen el proyecto: artefactos, dependencias y basura de build.
-// `packages/` se salta a propósito: en un monorepo, elegir un paquete al azar sería peor que
-// pedir --stack.
+// `packages/` sí se recorre: en un monorepo cada paquete detectado recibe su propio overlay.
 const SKIP_SCAN = new Set([
   "node_modules", "bin", "obj", "target", "dist", "build", "out", "vendor",
-  "venv", "__pycache__", "coverage", "packages", "tmp", "temp", "logs",
+  "venv", "__pycache__", "coverage", "tmp", "temp", "logs",
 ]);
 // Subdirectorios candidatos, primero los más cercanos a la raíz (búsqueda en anchura).
 // Acotado en profundidad y en número: esto corre en el arranque del instalador.
@@ -258,16 +260,37 @@ function detectIn(dir) {
 
 // La raíz manda. Solo si ahí no hay nada se buscan subdirectorios, porque en .NET, Java y
 // muchos repos el manifiesto vive un nivel más abajo (Proyecto/Proyecto.csproj, src/App/...).
-// Devuelve dónde encontró la evidencia para que la decisión sea auditable, no un acto de fe.
-function detectStack() {
+// Devuelve TODOS los proyectos encontrados y dónde, para que la decisión sea auditable: uno es
+// el caso normal; varios con stacks distintos es un monorepo. Lo que cuelga de un proyecto ya
+// detectado no se vuelve a evaluar (su ios/ o su android/ no son otro proyecto).
+function detectStacks() {
   const enRaiz = detectIn(CWD);
-  if (enRaiz) return { id: enRaiz, dir: null };
+  if (enRaiz) return [{ id: enRaiz, dir: null }];
+  const found = [];
   for (const sub of candidateDirs()) {
+    if (found.some((f) => sub.startsWith(path.join(CWD, f.dir) + path.sep))) continue;
     const id = detectIn(sub);
-    if (id) return { id, dir: path.relative(CWD, sub) };
+    if (id) found.push({ id, dir: path.relative(CWD, sub).split(path.sep).join("/") });
   }
-  return null;
+  return found;
 }
+
+// "backend/nestjs" (todo el repo) o "backend/nestjs:apps/api" (solo esa carpeta). Un mismo stack
+// en varias carpetas se agrupa en un overlay con varias rutas; `dirs: null` = se carga siempre.
+function parseStacks(specs) {
+  const byId = new Map();
+  for (const spec of specs) {
+    const i = spec.indexOf(":");
+    const id = (i === -1 ? spec : spec.slice(0, i)).trim();
+    const dir = i === -1 ? "" : spec.slice(i + 1).trim().replace(/^\.\/+/, "").replace(/\/+$/, "");
+    if (!STACKS[id]) return { error: `Stack inválido: "${id}"` };
+    if (!byId.has(id)) byId.set(id, []);
+    if (!dir) byId.set(id, null);
+    else if (byId.get(id) !== null) byId.get(id).push(dir);
+  }
+  return { stacks: [...byId].map(([id, dirs]) => ({ id, dirs })) };
+}
+const describeStacks = (stacks) => stacks.map((s) => (s.dirs ? `${s.id} (${s.dirs.map((d) => `${d}/`).join(", ")})` : s.id)).join(" · ");
 
 const STACKS = {
   "backend/nestjs": 1, "backend/express": 1, "backend/fastapi": 1, "backend/django": 1,
@@ -322,36 +345,77 @@ function applyLayer(src, dest, ctx, base) {
       continue;
     }
 
-    const srcBuf = fs.readFileSync(s);
-    ctx.next[rel] = hash(srcBuf);
-    if (!existed) {
-      if (!FLAGS.dryRun) fs.writeFileSync(d, srcBuf);
-      console.log(`  ${dry}➕ ${shown}`);
-      ctx.added++;
-      continue;
-    }
-    const destHash = hash(fs.readFileSync(d));
-    if (destHash === ctx.next[rel]) {
-      ctx.same++;
-      continue;
-    }
-    if (!FLAGS.update) {
-      ctx.kept++;
-      continue;
-    }
-    if (ctx.prev[rel] === destHash) {
-      if (!FLAGS.dryRun) fs.writeFileSync(d, srcBuf);
-      console.log(`  ${dry}⬆️  ${shown}`);
-      ctx.updated++;
-    } else if (ctx.prev[rel] === ctx.next[rel]) {
-      // Lo editaste tú y el kit NO ha cambiado este archivo: no hay versión nueva que ofrecerte.
-      ctx.userOwned++;
-    } else {
-      if (!FLAGS.dryRun) fs.writeFileSync(`${d}.kit-new`, srcBuf);
-      console.log(`  ${dry}⚠️  ${shown} — lo tuyo se conserva, la versión nueva queda en ${entry.name}.kit-new`);
-      ctx.conflicts.push(shown);
-    }
+    applyFile(rel, fs.readFileSync(s), d, ctx);
   }
+}
+
+// Las reglas de applyLayer para UN archivo, venga de shared/.claude o lo genere el instalador
+// (los overlays del stack): así ambos se actualizan igual y nunca se pisa una edición tuya.
+function applyFile(rel, srcBuf, d, ctx) {
+  const dry = FLAGS.dryRun ? "(dry-run) " : "";
+  const shown = path.relative(CWD, d);
+  ctx.next[rel] = hash(srcBuf);
+  if (!fs.existsSync(d)) {
+    if (!FLAGS.dryRun) {
+      fs.mkdirSync(path.dirname(d), { recursive: true });
+      fs.writeFileSync(d, srcBuf);
+    }
+    console.log(`  ${dry}➕ ${shown}`);
+    ctx.added++;
+    return;
+  }
+  const destHash = hash(fs.readFileSync(d));
+  if (destHash === ctx.next[rel]) {
+    ctx.same++;
+    return;
+  }
+  if (!FLAGS.update) {
+    ctx.kept++;
+    return;
+  }
+  if (ctx.prev[rel] === destHash) {
+    if (!FLAGS.dryRun) fs.writeFileSync(d, srcBuf);
+    console.log(`  ${dry}⬆️  ${shown}`);
+    ctx.updated++;
+  } else if (ctx.prev[rel] === ctx.next[rel]) {
+    // Lo editaste tú y el kit NO ha cambiado este archivo: no hay versión nueva que ofrecerte.
+    ctx.userOwned++;
+  } else {
+    if (!FLAGS.dryRun) fs.writeFileSync(`${d}.kit-new`, srcBuf);
+    console.log(`  ${dry}⚠️  ${shown} — lo tuyo se conserva, la versión nueva queda en ${path.basename(d)}.kit-new`);
+    ctx.conflicts.push(shown);
+  }
+}
+
+// ---------- overlays del stack como reglas de Claude Code ----------
+// Antes iban dentro del bloque gestionado de CLAUDE.md, que se regenera entero en cada
+// ejecución: cualquier edición se perdía, y en un monorepo solo cabía UN stack para todo el
+// repo. Ahora son archivos de .claude/rules/kit/ con manifiesto como el resto de la capa:
+//  - sin `paths` se cargan siempre (lo mismo que antes, proyecto de un solo stack);
+//  - con `paths` (monorepo) Claude Code los carga solo al trabajar en esa carpeta, así cada
+//    paquete recibe las reglas de SU stack y no las de los demás.
+const RULES_DIR = "rules/kit";
+const globDir = (d) => `${d.replace(/[[\]{}*?]/g, "\\$&").replace(/"/g, '\\"')}/**`;
+function stackRules(stacks) {
+  const files = new Map();
+  const add = (rel, source, label, dirs) => {
+    const body = readMaybe(source);
+    if (!body) return; // p. ej. blockchain no tiene _common
+    const f = files.get(rel) || { label, body, always: false, paths: new Set() };
+    if (dirs === null) f.always = true;
+    else dirs.forEach((d) => f.paths.add(globDir(d)));
+    files.set(rel, f);
+  };
+  for (const { id, dirs } of stacks) {
+    const [cat, st] = id.split("/");
+    add(`${RULES_DIR}/${cat}.md`, path.join(KIT, "stacks", cat, "_common", ".claude", "CLAUDE.md"), `${cat} (común)`, dirs);
+    add(`${RULES_DIR}/${cat}-${st}.md`, path.join(KIT, "stacks", cat, st, ".claude", "CLAUDE.md"), id, dirs);
+  }
+  return [...files].map(([rel, f]) => {
+    const fm = f.always ? "" : `---\npaths:\n${[...f.paths].map((p) => `  - "${p}"`).join("\n")}\n---\n`;
+    const aviso = `<!-- dev-starter-kit · overlay ${f.label}. Lo genera el instalador; si lo editas, --update respeta tus cambios. -->\n`;
+    return { rel, buf: Buffer.from(`${fm}${aviso}${f.body}\n`) };
+  });
 }
 
 // Fusiona el settings.json del kit con el tuyo sin perder nada:
@@ -605,20 +669,17 @@ async function scaffoldProject() {
   return false;
 }
 
-function composeClaudeMd(stackId, hasProject) {
-  const [cat, st] = stackId.split("/");
-  const common = readMaybe(path.join(KIT, "stacks", cat, "_common", ".claude", "CLAUDE.md"));
-  const specific = readMaybe(path.join(KIT, "stacks", cat, st, ".claude", "CLAUDE.md"));
+function composeClaudeMd(hasProject) {
   const imports = [];
   if (hasProject) imports.push("@CLAUDE.project.md");
   imports.push("@.claude/CLAUDE.base.md");
-  const overlay = [...imports, common, specific].filter(Boolean).join("\n\n");
-  const block = `${MB}\n${overlay}\n${ME}\n`;
+  imports.push("<!-- Reglas del stack: .claude/rules/kit/ (Claude Code las carga solo; en monorepo, por carpeta). -->");
+  const block = `${MB}\n${imports.join("\n")}\n${ME}\n`;
   const root = path.join(CWD, "CLAUDE.md");
   const dry = FLAGS.dryRun ? "(dry-run) " : "";
   if (!fs.existsSync(root)) {
     if (!FLAGS.dryRun) fs.writeFileSync(root, block);
-    console.log(`  ${dry}➕ ./CLAUDE.md (base + común + stack)`);
+    console.log(`  ${dry}➕ ./CLAUDE.md (proyecto + baseline; el stack va en .claude/rules/kit/)`);
   } else {
     let cur = fs.readFileSync(root, "utf8");
     const re = new RegExp(`${esc(MB)}[\\s\\S]*?${esc(ME)}\\n?`);
@@ -630,15 +691,16 @@ function composeClaudeMd(stackId, hasProject) {
 
 // ---------- manifiesto ----------
 const manifest = readJSON(path.join(KIT, "components.json")) || {};
-function cctFor(stackId) {
-  const [cat] = stackId.split("/");
+function cctFor(stacks) {
   const agents = [];
   const skills = [];
   for (const a of manifest.shared?.agents || []) agents.push(a.id);
   for (const s of manifest.shared?.skills || []) skills.push(s.id);
-  const sc = manifest.stacks?.[cat] || {};
-  for (const a of sc.agents || []) if (a.rec === "integrar") agents.push(a.id);
-  for (const s of sc.skills || []) if (s.rec === "integrar") skills.push(s.id);
+  for (const cat of new Set(stacks.map((st) => st.id.split("/")[0]))) {
+    const sc = manifest.stacks?.[cat] || {};
+    for (const a of sc.agents || []) if (a.rec === "integrar") agents.push(a.id);
+    for (const s of sc.skills || []) if (s.rec === "integrar") skills.push(s.id);
+  }
   return { agents: [...new Set(agents)], skills: [...new Set(skills)] };
 }
 
@@ -814,7 +876,9 @@ function envVars(file) {
     .filter(Boolean);
 }
 const plural = (n, sing, pl) => `${n} ${n === 1 ? sing : pl}`;
-function summarizeProject(stackId) {
+function summarizeProject(stacks) {
+  const stackId = stacks[0].id;
+  const monorepo = stacks.length > 1;
   const pkg = readJSON(path.join(CWD, "package.json")) || {};
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
   const dep = (n) => (deps[n] ? String(deps[n]).replace(/^[\^~>=<\s]+/, "") : null);
@@ -829,9 +893,10 @@ function summarizeProject(stackId) {
     lang.push(/"strict"\s*:\s*true/.test(readMaybe(path.join(CWD, "tsconfig.json"))) ? "TypeScript (strict)" : "TypeScript");
   }
   if (pkg.engines?.node) lang.push(`Node ${pkg.engines.node}`);
-  add("Stack", [stackId, ...lang].join(" · "));
+  add("Stack", [describeStacks(stacks), ...lang].join(" · "));
 
-  const fw = FRAMEWORK_DEP[stackId] && dep(FRAMEWORK_DEP[stackId]);
+  // En monorepo el framework vive en cada paquete, no en el package.json de la raíz.
+  const fw = !monorepo && FRAMEWORK_DEP[stackId] && dep(FRAMEWORK_DEP[stackId]);
   add("Framework", fw ? `${FRAMEWORK_DEP[stackId]} ${fw}` : null);
 
   const pm = packageManager();
@@ -847,7 +912,8 @@ function summarizeProject(stackId) {
   const engines = ENGINES.filter(([, re]) => re.test(haystack)).map(([n]) => n);
   add("Datos", [...data, ...engines].join(" · "));
 
-  const code = walkCode(CODE_EXT[stackId] || [".ts", ".tsx", ".js", ".py", ".php", ".java", ".cs", ".dart", ".sol"]);
+  const exts = [...new Set(stacks.flatMap((st) => CODE_EXT[st.id] || []))];
+  const code = walkCode(exts.length ? exts : [".ts", ".tsx", ".js", ".py", ".php", ".java", ".cs", ".dart", ".sol"]);
   add("Código", code.files ? `${plural(code.files, "archivo", "archivos")}${code.truncated ? "+" : ""} · ~${code.lines.toLocaleString("es")} líneas` : null);
 
 
@@ -936,37 +1002,47 @@ async function main() {
   console.log(`║   Dev Starter Kit v${VERSION} — instalador      `.slice(0, 45) + "║");
   console.log("╚════════════════════════════════════════════╝");
 
-  const detectado = FLAGS.stack ? null : detectStack();
-  let stackId = FLAGS.stack || (detectado && detectado.id);
-  if (stackId && !STACKS[stackId]) {
-    console.log(`⚠️  Stack "${stackId}" no reconocido.`);
-    stackId = null;
-  }
-  if (stackId) {
-    const donde = detectado && detectado.dir ? ` (por ${detectado.dir}/, no por la raíz)` : "";
-    console.log(`\n✅ Stack detectado: ${stackId}${donde}`);
-    if (detectado && detectado.dir) {
-      console.log(`   El kit se instala aquí, en ${path.basename(CWD)}/, para que el CLAUDE.md cubra todo el repo.`);
+  let stacks = null;
+  if (FLAGS.stackArgs.length) {
+    const r = parseStacks(FLAGS.stackArgs);
+    if (r.error) console.log(`⚠️  ${r.error}.`);
+    else {
+      stacks = r.stacks;
+      console.log(`\n✅ Stack indicado: ${describeStacks(stacks)}`);
     }
-    if (!(await confirm("¿Es correcto?", true))) stackId = null;
+  } else {
+    const found = detectStacks();
+    const ids = [...new Set(found.map((f) => f.id))];
+    if (ids.length === 1) {
+      // Un solo stack (aunque esté en una o varias subcarpetas): su overlay se carga siempre.
+      const donde = found[0].dir ? ` (por ${found.map((f) => `${f.dir}/`).join(", ")}, no por la raíz)` : "";
+      console.log(`\n✅ Stack detectado: ${ids[0]}${donde}`);
+      if (found[0].dir) console.log(`   El kit se instala aquí, en ${path.basename(CWD)}/, para que el CLAUDE.md cubra todo el repo.`);
+      stacks = [{ id: ids[0], dirs: null }];
+    } else if (ids.length > 1) {
+      stacks = ids.map((id) => ({ id, dirs: found.filter((f) => f.id === id).map((f) => f.dir) }));
+      console.log(`\n✅ Monorepo: ${ids.length} stacks detectados, cada uno con sus reglas solo en su carpeta:`);
+      for (const st of stacks) console.log(`   ${st.id.padEnd(22)} → ${st.dirs.map((d) => `${d}/`).join(", ")}`);
+    }
+    if (stacks && !(await confirm("¿Es correcto?", true))) stacks = null;
   }
-  if (!stackId) {
-    if (!FLAGS.stack) console.log(`\n🔍 ${detectionHint()}`);
+  if (!stacks) {
+    if (!FLAGS.stackArgs.length) console.log(`\n🔍 ${detectionHint()}`);
     console.log("\nStacks disponibles:\n  " + Object.keys(STACKS).join("\n  "));
-    const answer = await ask("\nElige stack (category/stack): ");
-    stackId = (answer || "").trim();
-    if (!STACKS[stackId]) {
+    const answer = await ask("\nElige stack (category/stack; en monorepo, category/stack:carpeta separados por coma): ");
+    const r = parseStacks((answer || "").split(",").map((x) => x.trim()).filter(Boolean));
+    if (answer === null || r.error || !r.stacks.length) {
       console.error(
         answer === null
-          ? "\n❌ No se pudo detectar el stack y no hay entrada interactiva disponible.\n   Relanza indicándolo: node install.js --stack <category/stack>"
-          : `\n❌ Stack inválido: "${stackId}"`
+          ? "\n❌ No se pudo detectar el stack y no hay entrada interactiva disponible.\n   Relanza indicándolo: node install.js --stack <category/stack>[:carpeta][,…]"
+          : `\n❌ ${r.error || "No elegiste ningún stack"}`
       );
       closeInput();
       process.exitCode = 1; // no salgas en verde a medias
       return;
     }
+    stacks = r.stacks;
   }
-
   // backup
   const claudeDir = path.join(CWD, ".claude");
   if (fs.existsSync(claudeDir) && !FLAGS.dryRun) {
@@ -999,6 +1075,8 @@ async function main() {
     retired: 0, retiredKept: 0,
   };
   applyLayer(path.join(KIT, "shared", ".claude"), claudeDir, layer);
+  // Reglas del stack: mismo manifiesto, así un cambio de stack retira la regla vieja si está intacta.
+  for (const r of stackRules(stacks)) applyFile(r.rel, r.buf, path.join(claudeDir, r.rel), layer);
   const remembered = retireFiles(layer, claudeDir);
   reportLayer(layer);
   if (!FLAGS.dryRun) {
@@ -1008,7 +1086,7 @@ async function main() {
   // 2) Definición del proyecto + CLAUDE.md raíz (añade/actualiza nuestro bloque; respeta lo demás)
   console.log("\n📝 Definición del proyecto y CLAUDE.md...");
   const hasProject = await scaffoldProject();
-  composeClaudeMd(stackId, hasProject);
+  composeClaudeMd(hasProject);
   ensureGitignore();
   await scaffoldEnvExample();
 
@@ -1022,9 +1100,9 @@ async function main() {
 
   // 4) externos (claude-code-templates: agentes + skills)
   if (!FLAGS.noExternal) {
-    const { agents, skills } = cctFor(stackId);
+    const { agents, skills } = cctFor(stacks);
     if (agents.length || skills.length) {
-      console.log(`\n🧩 Componentes externos curados para ${stackId}:`);
+      console.log(`\n🧩 Componentes externos curados para ${stacks.map((x) => x.id).join(", ")}:`);
       agents.forEach((a) => console.log(`   agent  ${a}`));
       skills.forEach((s) => console.log(`   skill  ${s}`));
       if (await confirm("¿Instalarlos vía claude-code-templates? (requiere red)", FLAGS.all)) {
@@ -1036,15 +1114,19 @@ async function main() {
       }
     }
 
-    // 5) deps npm + tools por stack
-    const extra = manifest.byStackId?.[stackId];
-    if (extra?.npm?.length) {
-      console.log(`\n📦 Dependencias npm sugeridas para ${stackId}: ${extra.npm.join(", ")}`);
-      if (fs.existsSync(path.join(CWD, "package.json")) && (await confirm("¿Instalarlas ahora?", FLAGS.all))) {
-        run(`npm install ${extra.npm.join(" ")}`);
+    // 5) deps npm + tools por stack. En monorepo no se instalan en la raíz: van en el paquete,
+    //    con el gestor de workspaces del repo, y eso lo decide la persona.
+    for (const st of stacks) {
+      const npmDeps = manifest.byStackId?.[st.id]?.npm || [];
+      if (!npmDeps.length) continue;
+      console.log(`\n📦 Dependencias npm sugeridas para ${st.id}: ${npmDeps.join(", ")}`);
+      if (st.dirs) {
+        console.log(`   Instálalas dentro de ${st.dirs.map((d) => `${d}/`).join(", ")} con el gestor de workspaces del repo.`);
+      } else if (fs.existsSync(path.join(CWD, "package.json")) && (await confirm("¿Instalarlas ahora?", FLAGS.all))) {
+        run(`npm install ${npmDeps.join(" ")}`);
       }
     }
-    if (extra?.tools?.includes("react-doctor")) {
+    if (stacks.some((st) => manifest.byStackId?.[st.id]?.tools?.includes("react-doctor"))) {
       console.log("\n🩺 react-doctor disponible: `npx react-doctor@latest .` para auditar (state/perf/a11y). No se cablea como hook bloqueante.");
     }
 
@@ -1053,40 +1135,45 @@ async function main() {
   }
 
   // 6) plugins de Claude Code (se añaden DENTRO de Claude Code, no por shell): shared + por-stack
-  const [pcat] = stackId.split("/");
   const marketplaces = [];
   const installs = [];
   const seenMk = new Set();
   const pushMk = (id) => { if (id && !seenMk.has(id)) { seenMk.add(id); marketplaces.push(id); } };
   (manifest.shared?.pluginMarketplaces || []).forEach((m) => pushMk(m.id));
   (manifest.shared?.pluginsOptional || []).forEach((p) => installs.push(p));
-  for (const p of manifest.stacks?.[pcat]?.pluginsOptional || []) {
-    if (p.marketplace) pushMk(p.marketplace);
-    installs.push(p);
+  for (const cat of new Set(stacks.map((st) => st.id.split("/")[0]))) {
+    for (const p of manifest.stacks?.[cat]?.pluginsOptional || []) {
+      if (p.marketplace) pushMk(p.marketplace);
+      if (!installs.some((x) => x.id === p.id)) installs.push(p);
+    }
   }
-  // Code intelligence (LSP) del stack: el plugin es solo el adaptador; el binario del language
-  // server lo instala la persona (el kit no instala nada en global).
-  const lsp = manifest.byStackId?.[stackId]?.lsp;
-  if (marketplaces.length || installs.length || lsp) {
+  // Code intelligence (LSP) de cada stack: el plugin es solo el adaptador; el binario del
+  // language server lo instala la persona (el kit no instala nada en global).
+  const lsps = new Map();
+  for (const st of stacks) {
+    const l = manifest.byStackId?.[st.id]?.lsp;
+    if (l) lsps.set(l.plugin, { ...l, stacks: [...(lsps.get(l.plugin)?.stacks || []), st.id] });
+  }
+  if (marketplaces.length || installs.length || lsps.size) {
     console.log("\n🔌 Plugins de Claude Code (ejecuta DENTRO de Claude Code):");
     marketplaces.forEach((id) => console.log(`   /plugin marketplace add ${id}`));
     // `short` resume la condición que hay que conocer antes de instalarlo (costo, datos que envía…).
     installs.forEach((p) => console.log(`   /plugin install ${p.id}${p.short ? `   # ${p.short}` : ""}`));
-    if (lsp) {
-      console.log(`\n🧠 Code intelligence para ${stackId}: go-to-definition, referencias y errores de tipos en vivo.`);
-      console.log(`   /plugin install ${lsp.plugin}`);
-      console.log(`   Requiere el language server instalado por ti: ${lsp.binary}`);
+    for (const l of lsps.values()) {
+      console.log(`\n🧠 Code intelligence para ${l.stacks.join(", ")}: go-to-definition, referencias y errores de tipos en vivo.`);
+      console.log(`   /plugin install ${l.plugin}`);
+      console.log(`   Requiere el language server instalado por ti: ${l.binary}`);
     }
   }
 
   console.log("\n✅ Listo.");
   console.log("   • Capa base coherente aplicada en .claude/ (agentes, skills, helpers, settings, comandos)");
-  console.log("   • CLAUDE.md compuesto (project + base + común + stack) en la raíz");
+  console.log(`   • CLAUDE.md compuesto (proyecto + baseline) y reglas del stack en .claude/rules/kit/: ${describeStacks(stacks)}`);
   console.log("   • Memoria: la nativa de Claude Code + la de agente en .claude/agent-memory/ (versionada); .gitignore actualizado");
   console.log("   • Siguiente paso: abre Claude Code y corre /project-context para rellenar CLAUDE.project.md");
 
   try {
-    summarizeProject(stackId);
+    summarizeProject(stacks);
   } catch (e) {
     console.error(`\n⚠️  No se pudo generar el resumen del proyecto: ${e.message}`); // nunca tumbes una instalación correcta
   }

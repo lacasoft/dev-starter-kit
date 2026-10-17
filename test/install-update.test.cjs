@@ -216,6 +216,91 @@ test("indica el plugin de code intelligence (LSP) del stack", () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+// ---- overlays del stack como reglas (.claude/rules/kit/) ----
+function correr(cwd, args) {
+  const r = spawnSync("node", [INSTALL, "--yes", "--no-external", ...args], { cwd, input: "", encoding: "utf8" });
+  return { status: r.status, out: (r.stdout || "") + (r.stderr || "") };
+}
+const regla = (dir, nombre) => fs.readFileSync(path.join(dir, ".claude", "rules", "kit", nombre), "utf8");
+
+test("un solo stack: el overlay va a .claude/rules/kit sin paths y CLAUDE.md solo importa", () => {
+  const dir = proyecto();
+  const md = fs.readFileSync(path.join(dir, "CLAUDE.md"), "utf8");
+  assert.match(md, /@\.claude\/CLAUDE\.base\.md/);
+  assert.doesNotMatch(md, /playbook senior/, "el overlay ya no va inline en CLAUDE.md");
+  assert.match(regla(dir, "backend-nestjs.md"), /NestJS/);
+  assert.match(regla(dir, "backend.md"), /BACKEND/);
+  assert.doesNotMatch(regla(dir, "backend-nestjs.md"), /^---\npaths:/, "sin paths: se carga siempre, como antes");
+  assert.ok(leerJSON(path.join(dir, ".claude", ".kit-manifest.json")).files["rules/kit/backend-nestjs.md"], "las reglas van en el manifiesto");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("monorepo: cada regla queda acotada a la carpeta de su stack", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-mono-"));
+  for (const [f, c] of Object.entries({
+    "package.json": '{"private":true,"workspaces":["apps/*"]}',
+    "apps/api/package.json": '{"dependencies":{"@nestjs/core":"^11"}}',
+    "apps/web/package.json": '{"dependencies":{"next":"15"}}',
+    "apps/admin/package.json": '{"dependencies":{"next":"15"}}',
+  })) {
+    fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
+    fs.writeFileSync(path.join(dir, f), c);
+  }
+  const r = correr(dir, []);
+  assert.equal(r.status, 0, r.out);
+  assert.match(regla(dir, "backend-nestjs.md"), /^---\npaths:\n  - "apps\/api\/\*\*"\n---/);
+  const next = regla(dir, "frontend-nextjs.md");
+  assert.match(next, /"apps\/web\/\*\*"/);
+  assert.match(next, /"apps\/admin\/\*\*"/, "el mismo stack en dos carpetas comparte regla");
+  assert.match(regla(dir, "frontend.md"), /paths:/, "el común de la categoría también va acotado");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("--stack acepta varios stacks con carpeta", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-stackflag-"));
+  const r = correr(dir, ["--stack", "backend/fastapi:services/api,mobile/flutter:app"]);
+  assert.equal(r.status, 0, r.out);
+  assert.match(r.out, /Stack indicado: backend\/fastapi \(services\/api\/\) · mobile\/flutter \(app\/\)/);
+  assert.match(regla(dir, "backend-fastapi.md"), /"services\/api\/\*\*"/);
+  assert.match(regla(dir, "mobile-flutter.md"), /"app\/\*\*"/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("--stack con un stack inválido en la lista sale con código 1", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-stackbad-"));
+  const r = correr(dir, ["--stack", "backend/nestjs:api,frontend/vue:web"]);
+  assert.equal(r.status, 1);
+  assert.match(r.out, /frontend\/vue/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("--update migra el overlay inline de una instalación anterior a reglas", () => {
+  const dir = proyecto();
+  const md = path.join(dir, "CLAUDE.md");
+  // Así lo dejaba la 2.x: el overlay dentro del bloque gestionado, y notas propias fuera.
+  fs.writeFileSync(
+    md,
+    "<!-- BEGIN dev-starter-kit overlay -->\n@.claude/CLAUDE.base.md\n\n# Categoría: BACKEND — playbook senior\n- regla vieja\n<!-- END dev-starter-kit overlay -->\n\n# Mis notas\n"
+  );
+  instalar(dir, ["--update"]);
+  const nuevo = fs.readFileSync(md, "utf8");
+  assert.doesNotMatch(nuevo, /playbook senior|regla vieja/, "el overlay sale del bloque");
+  assert.match(nuevo, /# Mis notas/, "lo de fuera del bloque se conserva");
+  assert.match(regla(dir, "backend.md"), /BACKEND/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("cambiar de stack retira la regla vieja intacta y respeta la que editaste", () => {
+  const dir = proyecto(); // backend/nestjs
+  fs.appendFileSync(path.join(dir, ".claude", "rules", "kit", "backend.md"), "\n- regla mía\n");
+  const r = correr(dir, ["--stack", "backend/express", "--update"]);
+  assert.equal(r.status, 0, r.out);
+  assert.ok(!fs.existsSync(path.join(dir, ".claude", "rules", "kit", "backend-nestjs.md")), "la del stack anterior se retira");
+  assert.match(regla(dir, "backend-express.md"), /Express/);
+  assert.match(regla(dir, "backend.md"), /regla mía/, "tu edición del común se conserva");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test("--update nunca toca la memoria ni CLAUDE.project.md", () => {
   const dir = proyecto();
   const mem = path.join(dir, ".claude", "memory", "notas.md");

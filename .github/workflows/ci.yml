@@ -31,3 +31,11 @@ jobs:
             rm -rf "$tmp"
           done
           echo "✅ instalador OK en todos los stacks ($(node scripts/stacks.cjs | wc -l))"
+      - name: Smoke test del instalador (monorepo multi-stack, dry-run)
+        run: |
+          set -e
+          tmp="$(mktemp -d)"
+          ( cd "$tmp" && node "$GITHUB_WORKSPACE/install.js" --yes --no-external --dry-run \
+              --stack backend/nestjs:apps/api,frontend/nextjs:apps/web,mobile/flutter:apps/mobile >/dev/null )
+          rm -rf "$tmp"
+          echo "✅ instalador OK en monorepo"

@@ -11,7 +11,7 @@ Eres quien hace el onboarding de un agente en un repo que no conoce. Sabes que e
 ## Principios
 - **Verificado o marcado**: lo que escribes sale de un archivo que leíste o de un comando que corriste. Lo que no puedes confirmar va como pregunta, no como afirmación.
 - **Solo lo que no se deduce rápido**: nada de listar cada carpeta ni repetir lo que dice el código. Lo que un ingeniero nuevo tardaría una mañana en averiguar.
-- **Corto**: apunta a menos de 150 líneas. Todo se carga en cada sesión y la adherencia baja con el tamaño. Si un área necesita más detalle, propón una regla con `paths:` en `.claude/rules/` (se carga solo al tocar esos archivos).
+- **Corto**: apunta a menos de 150 líneas. Todo se carga en cada sesión y la adherencia baja con el tamaño. Si un área necesita más detalle, propón una regla con `paths:` en `.claude/rules/` (se carga solo al tocar esos archivos), fuera de `.claude/rules/kit/`, que gestiona el instalador.
 - **Cero secretos**: nombres de variables de entorno sí; valores nunca.
 
 ## 1. Lee lo que hay

@@ -45,20 +45,21 @@ Alternativa (clone local):
 node /ruta/al/kit/install.js
 ```
 
-Flags: `--stack backend/nestjs` (fuerza stack) · `--yes` (no interactivo, conservador) ·
+Flags: `--stack backend/nestjs` (fuerza stack; en monorepo, uno por carpeta: `--stack backend/nestjs:apps/api,frontend/nextjs:apps/web`) · `--yes` (no interactivo, conservador) ·
 `--all` (acepta TODO: externos + deps; combínalo con `--yes` para desatendido total) ·
 `--no-external` · `--update`/`--force` (trae la última capa base sin pisar lo que hayas editado) · `--dry-run` (simula) · `--help`.
 `--no-flow` se sigue aceptando para no romper scripts, pero ya no hace nada.
 
 El instalador:
 1. **Detecta el stack** (pubspec→flutter, react-native, next, angular, nest, foundry, `.csproj`/`.sln`→dotnet, Spring, django, composer→php, fastapi, react, express).
-   - **La raíz manda, pero no es obligatoria.** Si en la raíz no hay nada reconocible, se buscan subdirectorios (hasta 3 niveles, saltando `node_modules`, `bin`, `obj`, `target`, `dist`…). Es lo normal en .NET (`Proyecto/Proyecto.csproj`, `src/App/App.csproj`) y frecuente en Java y en repos con `backend/`+`web/`. El instalador dice **por dónde** lo detectó y sigue instalando en el directorio donde lo corriste, para que el `CLAUDE.md` cubra todo el repo. En un monorepo con `packages/` no adivina: pide `--stack`.
+   - **La raíz manda, pero no es obligatoria.** Si en la raíz no hay nada reconocible, se buscan subdirectorios (hasta 3 niveles, saltando `node_modules`, `bin`, `obj`, `target`, `dist`…). Es lo normal en .NET (`Proyecto/Proyecto.csproj`, `src/App/App.csproj`) y frecuente en Java y en repos con `backend/`+`web/`. El instalador dice **por dónde** lo detectó y sigue instalando en el directorio donde lo corriste, para que el `CLAUDE.md` cubra todo el repo.
+   - **Monorepo**: si en subcarpetas aparecen **stacks distintos** (p. ej. `apps/api` NestJS y `apps/web` Next.js, también bajo `packages/`), los lista y aplica cada uno solo a su carpeta (ver [Monorepos](#monorepos)). La misma tecnología en varias carpetas (`src/Api` + `tests/Api.Tests`) sigue siendo un solo stack.
    - **Java/Kotlin**: se reconoce Spring por sus señales (`spring-boot`, `org.springframework`, el plugin de Gradle o `io.spring.dependency-management`) en `pom.xml`, `build.gradle(.kts)` y `settings.gradle(.kts)`. Un proyecto Java **sin** Spring no se fuerza al overlay de Spring: el instalador lo dice y te deja elegir.
    - Si la detección falla, imprime **qué vio** en el directorio en vez de rendirse sin explicación.
    - En un proyecto **fullstack con un solo `package.json`** (p. ej. express + react juntos) gana el **frontend**; si el repo es principalmente API, fuerza con `--stack backend/express`.
 2. Hace **backup** de tu `.claude/` si existe.
 3. Aplica la **capa base** (`shared/.claude` → `.claude/`): agentes, skills, helpers, settings, comandos.
-4. Scaffolda **`CLAUDE.project.md`** y compone **`./CLAUDE.md`** = `@CLAUDE.project.md` + `@.claude/CLAUDE.base.md` + común + stack (bloque gestionado idempotente).
+4. Scaffolda **`CLAUDE.project.md`**, compone **`./CLAUDE.md`** = `@CLAUDE.project.md` + `@.claude/CLAUDE.base.md` (bloque gestionado idempotente) y escribe los overlays del stack como **reglas** en `.claude/rules/kit/` (`<categoría>.md` + `<categoría>-<stack>.md`).
 5. Actualiza **`.gitignore`** (memoria/runtime/backups/secretos), idempotente. Los ejemplos de env (`.env.example`, `.env.sample`, `.env.template`) quedan **versionados**: van negados después de `.env.*`.
 6. **Avisa de restos de Ruflo** (claude-flow) si los encuentra: servidores en `.mcp.json`, `.claude-flow/`, `.swarm/`, archivos en `.claude/` o instrucciones en `CLAUDE.md`. Solo los enumera con el comando para quitarlos; no borra nada que no instaló el kit.
 7. (opcional) Instala **agentes/skills externos** curados vía `claude-code-templates` y deps npm por stack.
@@ -75,6 +76,39 @@ printf 'y\nn\ny\n' | node install.js
 ```
 
 Con `--yes` el stack debe ser detectable o venir en `--stack`; si no, sale con **código 1** en vez de instalar a medias.
+
+## Monorepos
+
+Un monorepo con varios stacks recibe las reglas de **cada stack solo en su carpeta**, gracias a las
+reglas con `paths:` de Claude Code: al trabajar en `apps/api/` se cargan las de NestJS; en
+`apps/web/`, las de Next.js; en la raíz, solo la baseline y `CLAUDE.project.md`.
+
+```bash
+npx -y github:lacasoft/dev-starter-kit                    # detecta los stacks por carpeta y pide confirmar
+npx -y github:lacasoft/dev-starter-kit --yes --stack backend/nestjs:apps/api,frontend/nextjs:apps/web
+```
+
+Así queda `.claude/rules/kit/backend-nestjs.md`:
+
+```markdown
+---
+paths:
+  - "apps/api/**"
+---
+<!-- dev-starter-kit · overlay backend/nestjs. … -->
+# Stack: NestJS — playbook senior …
+```
+
+- El mismo stack en varias carpetas comparte una regla con varias rutas; el común de la categoría
+  (`backend.md`, `frontend.md`) se acota a la unión de sus carpetas.
+- En un proyecto de un solo stack las reglas van **sin** `paths:` y se cargan siempre, como antes.
+- Las reglas están en el manifiesto: si editas una, `--update` la respeta; si cambias de stack, la
+  del stack anterior se retira si nadie la tocó.
+- Las dependencias npm sugeridas por stack no se instalan en la raíz de un monorepo: el instalador
+  dice en qué paquete van.
+- **Desde 2.x**: el overlay iba dentro del bloque gestionado de `CLAUDE.md` y se regeneraba en cada
+  ejecución (perdías lo que editaras ahí). `--update` lo saca del bloque y lo pasa a reglas; lo que
+  tengas fuera del bloque no se toca.
 
 ## Agentes incluidos (capa base, profundidad experta)
 
@@ -241,7 +275,8 @@ que tú editaste:
 | El kit ya no lo distribuye y sigue intacto | Se borra 🗑️ (p. ej. los helpers de la memoria propia de la 2.x) |
 | El kit ya no lo distribuye y lo editaste | Se conserva y se avisa |
 | `settings.json` | Se **fusiona**: tus permisos, hooks, `env` y demás claves se mantienen; se añaden los del kit |
-| `.claude/agent-memory/`, `.claude/memory/`, `CLAUDE.project.md`, `docs/adr/` | Nunca se tocan |
+| Reglas del stack (`.claude/rules/kit/`) | Igual que cualquier archivo del kit; si cambias de stack, la vieja se retira si sigue intacta |
+| `.claude/agent-memory/`, `.claude/memory/`, `.claude/rules/` fuera de `kit/`, `CLAUDE.project.md`, `docs/adr/` | Nunca se tocan |
 
 El `settings.json` merece detalle porque es el que la gente personaliza: la unión de `permissions`
 es sin duplicados, en `hooks` el kit solo reemplaza **sus** entradas (las que apuntan a sus helpers)
@@ -286,7 +321,7 @@ Repo **público (MIT)** distribuido por `npx github:` → la rama **`master` deb
   actualiza el patrón en `scripts/validate.cjs` — la comprobación no debe perderse en silencio.
 - **Tests**: `npm test` (`node:test`, sin dependencias) — guards del hook-handler y `--update`.
 - **CI** (`.github/workflows/ci.yml`): valida + tests + smoke-test del instalador en los **13 stacks**
-  (dry-run) en cada PR. La lista sale de `scripts/stacks.cjs`, que la deriva de `install.js`.
+  (dry-run) y en un monorepo multi-stack, en cada PR. La lista sale de `scripts/stacks.cjs`, que la deriva de `install.js`.
 - **Cómo añadir** agentes, skills, stacks o externos: ver [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Versionado**: SemVer en `package.json` + `CHANGELOG.md`, con tag anotado por versión
   (`v2.1.0`). Instala siempre pineando (`#v2.1.0`): es reproducible y evita la cache de npx.
