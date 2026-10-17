@@ -13,9 +13,11 @@
 - **Layout**: respeta safe areas, notches, distintos tamaños/densidades y orientación. Touch targets ≥ 44px.
 - **Accesibilidad del SO**: lectores de pantalla, dynamic type/escala de fuente, contraste.
 
-## Seguridad
+## Seguridad (OWASP MASVS v2)
+- Verifica contra **MASVS v2** por categoría: `STORAGE`, `CRYPTO`, `AUTH`, `NETWORK`, `PLATFORM`, `CODE`, `RESILIENCE`, `PRIVACY`. Los hallazgos citan la categoría (`MASVS-STORAGE`) y su CWE.
 - Tokens/secrets en almacenamiento **seguro del dispositivo** (Keychain/Keystore), nunca en storage plano.
 - Solo claves públicas en el cliente. Certificate pinning en APIs sensibles si procede. Ofusca lo justo; asume que el binario es inspeccionable.
+- Deep links, intents y WebViews validan su input como cualquier boundary; nada de exponer componentes de Android sin necesidad (`exported`).
 
 ## Distribución
 - Versionado y releases por tienda (App Store / Play). OTA updates con cuidado de compatibilidad de esquema/estado y rollback.

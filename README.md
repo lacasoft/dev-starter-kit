@@ -14,7 +14,7 @@ Configuración `.claude` unificada para backend, frontend, mobile y blockchain. 
 │   ├── CLAUDE.base.md          # baseline universal (comportamiento, swarm, seguridad, calidad)
 │   ├── settings.json           # hooks + permisos + statusLine
 │   ├── agents/                 # 14 agentes (5 core + 9 especialistas) — ver "Agentes incluidos"
-│   ├── skills/                 # 15 skills (flujo + ingeniería) — ver "Skills incluidas"
+│   ├── skills/                 # 16 skills (flujo + ingeniería + seguridad) — ver "Skills incluidas"
 │   ├── commands/               # /swarm, /kit:status
 │   ├── helpers/                # hook-handler, memory, session, statusline, auto-memory-hook
 │   └── templates/              # PROJECT.template.md (definición del proyecto)
@@ -87,6 +87,7 @@ Además, el kit instala por stack agentes/skills externos curados (`frontend-dev
 
 **Flujo de trabajo**: `tdd` · `diagnose` · `grill-me` · `handoff` · `swarm-orchestration` · `verification` · `code-review-response` · `git-worktrees`
 **Ingeniería/entrega**: `ci-cd` · `performance-profiling` · `migration` · `monorepo` · `release` · `ship-gate` · `iac`
+**Seguridad**: `owasp-review` (revisión contra OWASP Top 10:2025, ASVS 5.0 y CWE; LLM y agentes 2026)
 
 Las de ingeniería se destilaron (en español, a nuestra profundidad) del catálogo MIT
 [alirezarezvani/claude-skills](https://github.com/alirezarezvani/claude-skills) (330+ skills).
@@ -117,14 +118,30 @@ un comando que toque el sistema, hay que validar que sea seguro. No es solo una 
 | Nivel | Qué cubre | Ejemplos |
 | --- | --- | --- |
 | `deny` | Destructivo, irreversible o fuera del proyecto | `curl … \| sh` · `sudo` · `npm i -g` · `npm publish` · escribir en `/etc`, `/usr` · `dd of=/dev/…` · `chmod 777` · leer `~/.ssh` · `--no-verify` |
-| `ask` | Mete código de terceros nuevo → lo confirma la persona | `npm install <pkg>` · `pip install <pkg>` · `npx <pkg>` · `claude-code-templates --agent/--skill` |
+| `ask` | Mete código de terceros nuevo → lo confirma la persona | `npm install <pkg>` · `pip install <pkg>` · `npx`/`pnpm dlx`/`yarn dlx`/`bunx`/`uvx`/`pipx run` · `claude mcp add` · `claude-code-templates --agent/--skill` |
 | libre | No añade superficie de ataque | `npm ci` · `npm install` (del lockfile) · `pip install -r requirements.txt` · `npx --no-install` |
 
 El motivo que recibe el modelo incluye la checklist a verificar: nombre exacto (typosquatting),
-publisher oficial, **versión pineada** (nunca `@latest`/`@alpha`), scripts `pre/postinstall`, y si algo
-del repo ya lo cubre. Si un comando se bloquea, la respuesta correcta es replantearlo, no esquivar el hook.
+publisher oficial, **versión pineada** (nunca `@latest`/`@alpha`), **publicada hace 7+ días** (salvo fix de
+seguridad), scripts `pre/postinstall`, y si algo del repo ya lo cubre. Si un comando se bloquea, la respuesta correcta es replantearlo, no esquivar el hook.
 Como defensa en profundidad, `settings.json` deniega además `sudo`, `publish`, `chmod 777` y la lectura
 de `~/.ssh` y `~/.aws` por permisos, para el caso de que los hooks estén desactivados.
+
+## Estándares de seguridad
+
+| Estándar | Edición | Dónde se aplica |
+| --- | --- | --- |
+| OWASP Top 10 | **2025** (incluye A03 Supply Chain y A10 Exceptional Conditions; SSRF pasa a A01) | baseline §6, `security-engineer`, `reviewer`, `owasp-review` |
+| OWASP ASVS | **5.0** — nivel por proyecto (L1 mínimo, L2 con datos sensibles) en `CLAUDE.project.md` | `owasp-review`, `ship-gate` |
+| CWE Top 25 | **2025** — cada hallazgo lleva su CWE | `security-engineer`, `owasp-review` |
+| OWASP API Security Top 10 | **2023** (vigente) | `api-security-audit`, `api-architect` |
+| OWASP Top 10 for LLM Applications | **2026** | `owasp-review`, `ship-gate`, si el producto usa LLMs |
+| OWASP Top 10 for Agentic Applications | **2026** | `owasp-review`, baseline §6 (contenido externo = datos) |
+| OWASP MASVS | **v2** | overlay `mobile/_common`, `penetration-tester` |
+
+Las listas completas, qué buscar en cada categoría y las fuentes están en
+`shared/.claude/skills/owasp-review/referencia.md`. Cuando un estándar publique edición nueva, se
+actualiza ahí y en esta tabla.
 
 ## Orquestación multiagente (nativa)
 

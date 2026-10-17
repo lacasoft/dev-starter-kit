@@ -82,6 +82,17 @@ test("PERMITE npx --no-install (binario ya presente)", () =>
   assert.equal(decisionDe("npx --no-install prettier --write src/a.ts"), null));
 test("ASK al instalar un componente externo en .claude/", () =>
   assert.equal(decisionDe("npx -y claude-code-templates@1.28.16 --agent code-reviewer --yes"), "ask"));
+// Otros ejecutores que descargan y corren en un paso: antes pasaban sin preguntar.
+test("ASK en pnpm dlx", () => assert.equal(decisionDe("pnpm dlx create-vite@5 app"), "ask"));
+test("ASK en yarn dlx", () => assert.equal(decisionDe("yarn dlx cowsay@1 hola"), "ask"));
+test("ASK en bunx", () => assert.equal(decisionDe("bunx prisma@5 generate"), "ask"));
+test("ASK en uvx", () => assert.equal(decisionDe("uvx ruff@0.6.0 check ."), "ask"));
+test("ASK en pipx run", () => assert.equal(decisionDe("pipx run black==24.1.0 ."), "ask"));
+test("PERMITE pnpm run (script del propio repo, no dlx)", () => assert.equal(decisionDe("pnpm run build"), null));
+test("ASK al registrar un servidor MCP", () =>
+  assert.equal(decisionDe("claude mcp add github -- npx -y @modelcontextprotocol/server-github"), "ask"));
+test("el motivo del ASK incluye la antigüedad mínima", () =>
+  assert.match(bash("npm install express@5.1.0").permissionDecisionReason, /7\+ días/));
 
 // ---- pre-edit: escáner de secretos ----
 // Fixtures tipo-secreto construidos por concatenación para no dejar literales

@@ -26,7 +26,7 @@ Omite cualquier herramienta no disponible; no falles la revisión por una herram
 ## Checklist por dimensión
 
 ### Seguridad
-Inyección (SQL/command/path traversal) en todo punto donde input de usuario toca una query o el filesystem. AuthN/AuthZ presentes y no evadibles. Datos sensibles (tokens, passwords, PII) nunca logueados ni devueltos. Criptografía con primitivas estándar, no hechas a mano. Timing-safe en comparación de credenciales.
+Inyección (SQL/command/path traversal) en todo punto donde input de usuario toca una query o el filesystem. AuthN/AuthZ presentes y no evadibles, también por objeto (IDOR). Peticiones salientes a URLs del usuario sin allowlist (SSRF). Datos sensibles (tokens, passwords, PII) nunca logueados ni devueltos. Criptografía con primitivas estándar, no hechas a mano. Timing-safe en comparación de credenciales. Errores que fallan cerrados. Dependencias nuevas del diff revisadas con la checklist de §6.1. Cada hallazgo de seguridad lleva su **CWE** y categoría **OWASP Top 10:2025** (skill `owasp-review`); si el cambio es de seguridad profunda, deriva a `security-engineer`.
 
 ### Manejo de errores
 Toda llamada externa (red, DB, I/O) con manejo explícito. Errores logueados con contexto suficiente para diagnosticar sin filtrar internals al cliente. Limpieza de recursos (archivos, conexiones, locks) en `finally`/equivalente.

@@ -160,7 +160,17 @@ function newPackages(cmd) {
 
 const CHECKLIST =
   "Valida antes de aceptar (baseline §6.1): 1) nombre exacto, ¿typosquat? 2) publisher oficial y mantenimiento vivo " +
-  "3) versión pineada, nunca @latest/@alpha 4) scripts pre/postinstall 5) ¿algo del repo ya lo cubre?";
+  "3) versión pineada, nunca @latest/@alpha 4) publicada hace 7+ días (salvo fix de seguridad) 5) scripts pre/postinstall " +
+  "6) ¿algo del repo ya lo cubre?";
+
+// Ejecutores que descargan y corren un paquete en un solo paso, como `npx`.
+const REMOTE_RUNNERS = [
+  [/(?:^|[;&|]\s*)npx\s/, /--no-install\b/],
+  [/(?:^|[;&|]\s*)(?:pnpm|yarn)\s+dlx\s/, null],
+  [/(?:^|[;&|]\s*)(?:bunx|bun\s+x)\s/, null],
+  [/(?:^|[;&|]\s*)uvx\s/, null],
+  [/(?:^|[;&|]\s*)pipx\s+run\s/, null],
+];
 
 const payload = readPayload();
 const toolInput = payload.tool_input || {};
@@ -198,12 +208,18 @@ switch (action) {
           ` ${CHECKLIST}`
       );
     }
-    // `npx` ejecuta código remoto; con --no-install solo corre binarios ya presentes en el repo.
-    if (/(?:^|[;&|]\s*)npx\s/.test(cmd) && !/--no-install\b/.test(cmd)) {
-      askPreTool(`\`npx\` ejecuta un paquete descargado de internet. ${CHECKLIST}`);
+    // npx y similares ejecutan código remoto; `npx --no-install` solo corre binarios ya presentes en el repo.
+    for (const [re, salvo] of REMOTE_RUNNERS) {
+      if (re.test(cmd) && !(salvo && salvo.test(cmd))) {
+        askPreTool(`El comando descarga y ejecuta un paquete de internet en un solo paso. ${CHECKLIST}`);
+      }
     }
     if (/claude-code-templates[^\n;]*--(?:agent|skill|command|mcp)\b/i.test(cmd)) {
       askPreTool(`Instala un componente externo dentro de .claude/ (correrá con tus permisos). ${CHECKLIST}`);
+    }
+    // Un servidor MCP es código de terceros que el agente invoca con tus permisos (ASI04).
+    if (/(?:^|[;&|]\s*)claude\s+mcp\s+add(?:-json)?\b/.test(cmd)) {
+      askPreTool(`Registra un servidor MCP: código de terceros que correrá con tus permisos. ${CHECKLIST}`);
     }
     break;
   }

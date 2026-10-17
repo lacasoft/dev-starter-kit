@@ -114,7 +114,7 @@ for (const id of fsIds) if (!declIds.has(id)) errors.push(`overlay stacks/${id} 
 const ESMX = /\b(coste|costes|montar|montamos|montas|ordenador|ordenadores|fichero|ficheros|vale|pillas|pillamos|pill[eé])\b/i;
 const esmxFiles = [
   ...agents,
-  ...skills,
+  ...walk(path.join(ROOT, "shared/.claude/skills"), (p) => p.endsWith(".md")), // SKILL.md y sus referencias
   ...stacks,
   ...walk(path.join(ROOT, "shared/.claude/commands"), (p) => p.endsWith(".md")),
   ...walk(path.join(ROOT, "shared/templates"), (p) => p.endsWith(".md")),
