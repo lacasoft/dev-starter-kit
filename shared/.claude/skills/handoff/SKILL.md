@@ -24,5 +24,10 @@ Captura lo **no derivable del repo**; omite lo que un buen ingeniero deduce leye
 - **Honestidad sobre el estado**: marca lo no verificado y lo frágil. Nada de "todo listo" si no lo probaste.
 - **Cero secretos**: nombra qué credenciales hacen falta, nunca sus valores.
 
-## Cierre
-Si procede, registra el resumen en la memoria del proyecto (`.claude/memory/`) para que persista entre sesiones y lo recupere el `auto-memory-hook` al reanudar.
+## Dónde va cada cosa
+El handoff es estado **transitorio**: entrégalo en la respuesta o en `docs/handoff/<AAAA-MM-DD>-<tema>.md` (`/docs` está gitignorado). Antes de cerrarlo, saca de él lo que es **duradero** para que no muera con la tarea:
+- Una decisión de arquitectura → un ADR en `docs/adr/` (skill `adr`).
+- Un cambio en cómo se construye, prueba o despliega el proyecto → `CLAUDE.project.md`.
+- Una trampa o un dato del repo que seguirá siendo cierto → la memoria del agente que corresponda (`researcher`, `reviewer`, `security-engineer`) o la memoria automática de Claude Code.
+
+No dupliques: si ya está en el código, en un ADR o en `CLAUDE.project.md`, enlázalo.

@@ -149,6 +149,70 @@ test("--no-flow se acepta, avisa y no rompe", () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+// La memoria propia de la 2.x (memory.cjs, session.cjs, auto-memory-hook.mjs) se retiró.
+test("--update borra un archivo que el kit ya no distribuye si sigue intacto", () => {
+  const dir = proyecto();
+  const viejo = path.join(dir, ".claude", "helpers", "memory.cjs");
+  fs.writeFileSync(viejo, "// helper de una versión anterior\n");
+  const mp = path.join(dir, ".claude", ".kit-manifest.json");
+  const m = leerJSON(mp);
+  m.files["helpers/memory.cjs"] = require("node:crypto").createHash("sha256").update(fs.readFileSync(viejo)).digest("hex").slice(0, 16);
+  fs.writeFileSync(mp, JSON.stringify(m, null, 2));
+
+  const salida = instalar(dir, ["--update"]);
+
+  assert.ok(!fs.existsSync(viejo), "el helper intacto se retira");
+  assert.match(salida, /ya no lo usa/);
+  assert.ok(!leerJSON(mp).files["helpers/memory.cjs"], "y sale del manifiesto");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("--update conserva un archivo retirado que editaste, y avisa", () => {
+  const dir = proyecto();
+  const viejo = path.join(dir, ".claude", "helpers", "session.cjs");
+  fs.writeFileSync(viejo, "// lo edité yo\n");
+  const mp = path.join(dir, ".claude", ".kit-manifest.json");
+  const m = leerJSON(mp);
+  m.files["helpers/session.cjs"] = "0".repeat(16);
+  fs.writeFileSync(mp, JSON.stringify(m, null, 2));
+
+  const salida = instalar(dir, ["--update"]);
+
+  assert.ok(fs.existsSync(viejo), "lo editado no se borra");
+  assert.match(salida, /ya no es parte del kit/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("sin manifiesto, un helper retirado se avisa pero no se borra", () => {
+  const dir = proyecto();
+  fs.rmSync(path.join(dir, ".claude", ".kit-manifest.json"));
+  const viejo = path.join(dir, ".claude", "helpers", "auto-memory-hook.mjs");
+  fs.writeFileSync(viejo, "// 2.0\n");
+
+  const salida = instalar(dir, ["--update"]);
+
+  assert.ok(fs.existsSync(viejo));
+  assert.match(salida, /no hay manifiesto/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test(".gitignore ignora la memoria personal y deja versionada la de equipo", () => {
+  const dir = proyecto();
+  const gi = fs.readFileSync(path.join(dir, ".gitignore"), "utf8").split("\n");
+  assert.ok(gi.includes(".claude/agent-memory-local/"));
+  assert.ok(gi.includes("CLAUDE.local.md"));
+  assert.ok(!gi.some((l) => l.trim() === ".claude/agent-memory/"), "la memoria de equipo se versiona");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("indica el plugin de code intelligence (LSP) del stack", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-lsp-"));
+  const salida = instalar(dir);
+  assert.match(salida, /typescript-lsp@claude-plugins-official/);
+  assert.match(salida, /typescript-language-server/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test("--update nunca toca la memoria ni CLAUDE.project.md", () => {
   const dir = proyecto();
   const mem = path.join(dir, ".claude", "memory", "notas.md");

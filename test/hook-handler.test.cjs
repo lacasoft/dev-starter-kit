@@ -122,3 +122,54 @@ test(".env emite additionalContext sin bloquear", () => {
   const d = decision({ tool_input: { file_path: ".env", content: "FOO=bar" } });
   assert.ok(d && d.additionalContext && !d.permissionDecision);
 });
+
+// ---- session-start: avisos accionables al abrir sesión ----
+const fs = require("node:fs");
+const os = require("node:os");
+function sessionStart(files, payload = { source: "startup" }) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-session-"));
+  for (const [nombre, contenido] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(dir, nombre)), { recursive: true });
+    fs.writeFileSync(path.join(dir, nombre), contenido);
+  }
+  const r = spawnSync("node", [HH, "session-start"], {
+    input: JSON.stringify(payload),
+    encoding: "utf8",
+    env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
+  });
+  fs.rmSync(dir, { recursive: true, force: true });
+  return { code: r.status, out: r.stdout || "" };
+}
+const PLANTILLA = fs.readFileSync(path.join(__dirname, "..", "shared", "templates", "PROJECT.template.md"), "utf8");
+const RELLENO = "# App\n\n## Stack\nNestJS 11 · pnpm\n\n## Comandos\n- pnpm test\n- pnpm lint\n- pnpm build\n";
+
+test("session-start sugiere /project-context si CLAUDE.project.md falta", () =>
+  assert.match(sessionStart({}).out, /project-context/));
+test("session-start sugiere /project-context si sigue siendo la plantilla", () =>
+  assert.match(sessionStart({ "CLAUDE.project.md": PLANTILLA }).out, /project-context/));
+test("session-start calla si CLAUDE.project.md está relleno", () =>
+  assert.equal(sessionStart({ "CLAUDE.project.md": RELLENO }).out, ""));
+test("session-start no repite avisos tras una compactación", () =>
+  assert.equal(sessionStart({}, { source: "compact" }).out, ""));
+test("session-start avisa de *.kit-new pendientes", () =>
+  assert.match(sessionStart({ "CLAUDE.project.md": RELLENO, ".claude/agents/coder.md.kit-new": "x" }).out, /kit-new/));
+
+// ---- memory-only: agentes de solo lectura que solo escriben en su memoria ----
+function memoryOnly(file) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-mem-"));
+  const r = spawnSync("node", [HH, "memory-only"], {
+    input: JSON.stringify({ tool_input: { file_path: path.join(dir, file) } }),
+    encoding: "utf8",
+    env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
+  });
+  fs.rmSync(dir, { recursive: true, force: true });
+  if (!(r.stdout || "").trim()) return null;
+  return JSON.parse(r.stdout).hookSpecificOutput.permissionDecision;
+}
+test("memory-only PERMITE escribir en su memoria", () =>
+  assert.equal(memoryOnly(".claude/agent-memory/reviewer/MEMORY.md"), null));
+test("memory-only PERMITE la memoria local", () =>
+  assert.equal(memoryOnly(".claude/agent-memory-local/reviewer/MEMORY.md"), null));
+test("memory-only DENIEGA escribir código", () => assert.equal(memoryOnly("src/app.ts"), "deny"));
+test("memory-only DENIEGA un prefijo engañoso", () =>
+  assert.equal(memoryOnly(".claude/agent-memory-evil/x.md"), "deny"));

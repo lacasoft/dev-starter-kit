@@ -1,9 +1,11 @@
 <!--
   PLANTILLA DE DEFINICIÓN DEL PROYECTO
+  La forma rápida de rellenarla: abre Claude Code y corre /project-context. Lee el repo,
+  confirma los comandos y te pregunta solo lo que no se puede deducir.
   Rellena las secciones que apliquen y borra las que no. Esto es lo que da CONTEXTO real
   al agente (qué es el producto, su dominio, reglas y convenciones). Sin esto, el agente
   solo conoce las reglas genéricas. El root CLAUDE.md importa este archivo con @CLAUDE.project.md.
-  Mantén lo esencial y actualizado; no es documentación exhaustiva, es contexto operativo.
+  Mantén lo esencial y actualizado (< 150 líneas): se carga en cada sesión.
 -->
 
 # {{NOMBRE_DEL_PROYECTO}} — Definición para Claude
@@ -35,7 +37,13 @@
      Ej: idempotencia de webhooks, máquinas de estado válidas, límites, multi-tenant isolation. -->
 
 ## Seguridad y compliance
-<!-- Requisitos específicos: authz, PII, manejo de fondos/pagos, auditoría, normativa aplicable. -->
+<!-- Nivel ASVS 5.0 objetivo: L1 (mínimo) · L2 (auth, datos personales, pagos) · L3 (crítico).
+     Requisitos específicos: authz, PII, manejo de fondos/pagos, auditoría, normativa aplicable.
+     ¿Usa LLMs o agentes? Dilo: activa las listas OWASP de LLM y agentes. -->
+
+## Atributos de calidad
+<!-- Solo los que importan aquí, con umbral medible (vocabulario ISO/IEC 25010:2023).
+     Ej: eficiencia de desempeño: p95 < 300 ms en /checkout · fiabilidad: 99.9 % mensual. -->
 
 ## Integraciones externas
 <!-- Servicios de terceros (pagos, email, storage, on-chain) y reglas para usarlos. -->
@@ -55,6 +63,10 @@
 
 ## Testing
 <!-- Frameworks, dónde viven los tests, umbral de cobertura, comandos. -->
+
+## Decisiones de arquitectura
+<!-- No las narres aquí: viven en docs/adr/ (skill adr). Enlaza las que cambian cómo se trabaja.
+     Ej: - Eventos con outbox, nunca publicación directa → docs/adr/0003-outbox.md -->
 
 ## Notas / gotchas
 <!-- Trampas conocidas, deuda técnica relevante, cosas no obvias que el agente debe saber. -->

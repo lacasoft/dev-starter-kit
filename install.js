@@ -424,10 +424,44 @@ function mergeSettings(kitPath, destPath, retired = []) {
   return out;
 }
 
+// Archivos que el kit instaló y ya no distribuye (p. ej. los helpers de la memoria propia, que
+// sustituye la memoria nativa de Claude Code). Con --update se borran SOLO si siguen idénticos a
+// como los dejó el kit; si los editaste, se conservan y se avisa. Sin --update no se tocan, pero
+// se siguen recordando en el manifiesto para poder retirarlos en la próxima actualización.
+// Las instalaciones anteriores a 2.1 no tienen manifiesto: sus helpers retirados solo se avisan.
+const RETIRED_WITHOUT_MANIFEST = [
+  "helpers/memory.cjs", "helpers/session.cjs", "helpers/auto-memory-hook.mjs", "helpers/router.cjs", "helpers/intelligence.cjs",
+];
+function retireFiles(ctx, claudeDir) {
+  const remembered = {};
+  const dry = FLAGS.dryRun ? "(dry-run) " : "";
+  const candidates = { ...ctx.prev };
+  for (const rel of RETIRED_WITHOUT_MANIFEST) if (!(rel in candidates)) candidates[rel] = null;
+  for (const [rel, h] of Object.entries(candidates)) {
+    if (ctx.next[rel]) continue;
+    const p = path.join(claudeDir, rel);
+    if (!fs.existsSync(p)) continue;
+    const shown = path.relative(CWD, p);
+    if (FLAGS.update && h && hash(fs.readFileSync(p)) === h) {
+      if (!FLAGS.dryRun) fs.rmSync(p);
+      console.log(`  ${dry}🗑️  ${shown} (el kit ya no lo usa)`);
+      ctx.retired++;
+      continue;
+    }
+    if (h) remembered[rel] = h;
+    if (FLAGS.update) {
+      console.log(`  ⚠️  ${shown} ya no es parte del kit, pero ${h ? "lo editaste" : "no hay manifiesto para saber si lo editaste"}: se conserva. Bórralo si no lo usas.`);
+      ctx.retiredKept++;
+    }
+  }
+  return remembered;
+}
+
 function reportLayer(ctx) {
   const l = [];
   if (ctx.added) l.push(`${ctx.added} nuevos`);
   if (ctx.updated) l.push(`${ctx.updated} actualizados`);
+  if (ctx.retired) l.push(`${ctx.retired} retirados`);
   if (ctx.same) l.push(`${ctx.same} ya al día`);
   if (ctx.kept) l.push(`${ctx.kept} conservados (usa --update para actualizarlos)`);
   if (ctx.userOwned) l.push(`${ctx.userOwned} tuyos respetados (los editaste y el kit no los cambió)`);
@@ -497,7 +531,10 @@ function rufloLeftovers(kitFiles = {}) {
   return found;
 }
 
-const GITIGNORE = [".claude/memory/", ".claude.backup.*", ".env", ".env.*"];
+// La memoria de agente con scope `project` (.claude/agent-memory/) se versiona a propósito: es
+// conocimiento del equipo. La `local` y CLAUDE.local.md son personales. .claude/memory/ es de la
+// memoria propia que tuvo el kit hasta la 2.x: se sigue ignorando para no versionar restos.
+const GITIGNORE = [".claude/memory/", ".claude/agent-memory-local/", "CLAUDE.local.md", ".claude.backup.*", ".env", ".env.*"];
 // Los archivos de ejemplo de env van versionados (la baseline los exige), pero ".env.*" los
 // captura. Git aplica la última regla que casa, así que las negaciones van SIEMPRE después.
 const GITIGNORE_KEEP = ["!.env.example", "!.env.sample", "!.env.template"];
@@ -876,7 +913,7 @@ function summarizeProject(stackId) {
   const width = Math.max(...rows.map(([l]) => l.length));
   for (const [label, value] of rows) console.log(`   ${label.padEnd(width)}  ${value}`);
   if (rows.some(([, v]) => v.includes("⚠️"))) console.log("\n   ⚠️ = hueco frente a la baseline del kit. Revísalo antes de dar el proyecto por listo.");
-  console.log("   Rellena CLAUDE.project.md con lo que esto no puede inferir: dominio, decisiones y límites.");
+  console.log("   /project-context rellena CLAUDE.project.md con esto y te pregunta lo que no se puede inferir: dominio, decisiones y límites.");
 }
 
 // ---------- main ----------
@@ -946,11 +983,13 @@ async function main() {
     prev: (prevManifest && prevManifest.files) || {},
     next: {},
     added: 0, updated: 0, same: 0, kept: 0, userOwned: 0, merged: false, conflicts: [], retiredSettings: [],
+    retired: 0, retiredKept: 0,
   };
   applyLayer(path.join(KIT, "shared", ".claude"), claudeDir, layer);
+  const remembered = retireFiles(layer, claudeDir);
   reportLayer(layer);
   if (!FLAGS.dryRun) {
-    fs.writeFileSync(manifestPath, JSON.stringify({ version: VERSION, files: layer.next }, null, 2) + "\n");
+    fs.writeFileSync(manifestPath, JSON.stringify({ version: VERSION, files: { ...remembered, ...layer.next } }, null, 2) + "\n");
   }
 
   // 2) Definición del proyecto + CLAUDE.md raíz (añade/actualiza nuestro bloque; respeta lo demás)
@@ -1012,16 +1051,25 @@ async function main() {
     if (p.marketplace) pushMk(p.marketplace);
     installs.push(p.id);
   }
-  if (marketplaces.length || installs.length) {
+  // Code intelligence (LSP) del stack: el plugin es solo el adaptador; el binario del language
+  // server lo instala la persona (el kit no instala nada en global).
+  const lsp = manifest.byStackId?.[stackId]?.lsp;
+  if (marketplaces.length || installs.length || lsp) {
     console.log("\n🔌 Plugins de Claude Code (ejecuta DENTRO de Claude Code):");
     marketplaces.forEach((id) => console.log(`   /plugin marketplace add ${id}`));
     installs.forEach((id) => console.log(`   /plugin install ${id}`));
+    if (lsp) {
+      console.log(`\n🧠 Code intelligence para ${stackId}: go-to-definition, referencias y errores de tipos en vivo.`);
+      console.log(`   /plugin install ${lsp.plugin}`);
+      console.log(`   Requiere el language server instalado por ti: ${lsp.binary}`);
+    }
   }
 
   console.log("\n✅ Listo.");
   console.log("   • Capa base coherente aplicada en .claude/ (agentes, skills, helpers, settings, comandos)");
   console.log("   • CLAUDE.md compuesto (project + base + común + stack) en la raíz");
-  console.log("   • Memoria por-proyecto en .claude/memory/ y .gitignore actualizado");
+  console.log("   • Memoria: la nativa de Claude Code + la de agente en .claude/agent-memory/ (versionada); .gitignore actualizado");
+  console.log("   • Siguiente paso: abre Claude Code y corre /project-context para rellenar CLAUDE.project.md");
 
   try {
     summarizeProject(stackId);

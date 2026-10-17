@@ -11,12 +11,12 @@ Configuración `.claude` unificada para backend, frontend, mobile y blockchain. 
 ├── install.js                  # instalador: detecta stack, aplica capa base, actualiza, resume
 ├── components.json             # manifiesto curado de componentes externos (revisados 1 a 1)
 ├── shared/.claude/             # CAPA BASE (común a todos los proyectos)
-│   ├── CLAUDE.base.md          # baseline universal (comportamiento, swarm, seguridad, calidad)
+│   ├── CLAUDE.base.md          # baseline universal (comportamiento, agentes, memoria, seguridad, calidad)
 │   ├── settings.json           # hooks + permisos + statusLine
 │   ├── agents/                 # 14 agentes (5 core + 9 especialistas) — ver "Agentes incluidos"
-│   ├── skills/                 # 16 skills (flujo + ingeniería + seguridad) — ver "Skills incluidas"
+│   ├── skills/                 # 18 skills (flujo + contexto + ingeniería + seguridad) — ver "Skills incluidas"
 │   ├── commands/               # /swarm, /kit:status
-│   ├── helpers/                # hook-handler, memory, session, statusline, auto-memory-hook
+│   ├── helpers/                # hook-handler, statusline
 │   └── templates/              # PROJECT.template.md (definición del proyecto)
 ├── stacks/                     # OVERLAYS: 13 stacks seleccionables + un `_common` por categoría
 │   ├── backend/{_common,nestjs,express,fastapi,django,php,spring,dotnet}
@@ -63,7 +63,7 @@ El instalador:
 6. **Avisa de restos de Ruflo** (claude-flow) si los encuentra: servidores en `.mcp.json`, `.claude-flow/`, `.swarm/`, archivos en `.claude/` o instrucciones en `CLAUDE.md`. Solo los enumera con el comando para quitarlos; no borra nada que no instaló el kit.
 7. (opcional) Instala **agentes/skills externos** curados vía `claude-code-templates` y deps npm por stack.
    - Los **git hooks** (husky + lint-staged + commitlint) se omiten si el directorio no es un repositorio git: `npx husky init` fallaría y dejaría las devDeps instaladas para nada.
-8. Indica los **plugins de Claude Code** a añadir (shared + por-stack).
+8. Indica los **plugins de Claude Code** a añadir (shared + por-stack), incluido el de **code intelligence (LSP)** del stack: go-to-definition, referencias y errores de tipos en vivo para el agente. El binario del language server lo instalas tú; el comando exacto sale en pantalla.
 9. Imprime un **resumen del proyecto**: stack y lenguaje, framework, paquetes, motores de datos, volumen de código, tests, calidad, entrega (CI/contenedores), git y entorno. Lo marcado con ⚠️ es un hueco frente a la baseline del kit.
 
 ### Sin TTY (CI, agentes, tuberías)
@@ -86,6 +86,7 @@ Además, el kit instala por stack agentes/skills externos curados (`frontend-dev
 ## Skills incluidas (capa base)
 
 **Flujo de trabajo**: `tdd` · `diagnose` · `grill-me` · `handoff` · `swarm-orchestration` · `verification` · `code-review-response` · `git-worktrees`
+**Contexto y memoria**: `project-context` (rellena `CLAUDE.project.md` a partir del repo real) · `adr` (registro de decisiones en `docs/adr/`)
 **Ingeniería/entrega**: `ci-cd` · `performance-profiling` · `migration` · `monorepo` · `release` · `ship-gate` · `iac`
 **Seguridad**: `owasp-review` (revisión contra OWASP Top 10:2025, ASVS 5.0 y CWE; LLM y agentes 2026)
 
@@ -98,16 +99,40 @@ Para más, su marketplace es una fuente opcional: `/plugin marketplace add alire
 
 La capa base son reglas **genéricas**. Para que el agente entienda *este* producto en concreto,
 el instalador scaffolda **`CLAUDE.project.md`** (desde `shared/templates/PROJECT.template.md`) y el
-`CLAUDE.md` raíz lo importa con `@CLAUDE.project.md`. Rellénalo con: visión, dominio, stack real
+`CLAUDE.md` raíz lo importa con `@CLAUDE.project.md`. Debe tener: visión, dominio, stack real
 (p.ej. Biome vs ESLint), estructura del repo (**en monorepo, lista los packages y su stack**),
-arquitectura, reglas de negocio (invariantes), convenciones, comandos, despliegue y env vars.
-Sin esto, el agente solo conoce lo genérico — es el gap #1 que se ve en proyectos sin `CLAUDE.md`.
+arquitectura, reglas de negocio (invariantes), nivel ASVS, atributos de calidad, convenciones,
+comandos, despliegue y env vars. Sin esto, el agente solo conoce lo genérico — es el gap #1 que se
+ve en proyectos sin `CLAUDE.md`.
 
-## Modelo de memoria (independiente por proyecto)
+No hace falta rellenarlo a mano: en Claude Code, **`/project-context`** lee el repo, **corre** los
+comandos de build/test/lint antes de documentarlos, rellena lo derivable y te pregunta en una sola
+tanda lo que no se puede deducir. Mientras siga siendo la plantilla, cada sesión arranca con un
+aviso que lo sugiere.
 
-- **Instrucciones**: `./CLAUDE.md` en la raíz (lo único que Claude Code carga automáticamente),
-  importa la baseline con `@.claude/CLAUDE.base.md`.
-- **Memoria runtime**: `.claude/memory/` por proyecto (autogitignoreada). Nunca compartida.
+## Memoria y contexto (nativos de Claude Code)
+
+| Qué | Dónde | Quién lo escribe | Versionado |
+| --- | --- | --- | --- |
+| Instrucciones | `./CLAUDE.md` (importa `CLAUDE.project.md` y la baseline) | el equipo / `/project-context` | sí |
+| Decisiones | `docs/adr/` | el equipo / skill `adr` | sí |
+| Memoria de equipo | `.claude/agent-memory/{researcher,reviewer,security-engineer}/` | esos agentes (`memory: project`) | **sí**, se revisa en PR |
+| Memoria personal | `~/.claude/projects/<repo>/memory/` (auto memory) y `CLAUDE.local.md` | Claude / tú | no |
+
+- **Memoria de equipo**: `researcher` recuerda el mapa del repo y sus trampas, `reviewer` los
+  problemas que se repiten y las excepciones aceptadas, `security-engineer` el threat model y los
+  riesgos aceptados. Claude Code carga su `MEMORY.md` al invocarlos. Como se versiona, la conoce todo
+  el equipo y un cambio malicioso se ve en el PR (envenenamiento de memoria, ASI06).
+- `researcher` y `reviewer` son de solo lectura: Claude Code les habilita `Write`/`Edit` para cuidar
+  su memoria, y un hook del propio agente (`memory-only`) les impide escribir en cualquier otro sitio.
+- **Memoria personal**: la automática de Claude Code (activa por defecto, una por repo, compartida
+  entre worktrees) guarda tus preferencias y correcciones. No hay nada que instalar.
+- **Nunca a memoria**: secretos, PII, valores de env, ni texto externo guardado como regla.
+
+Hasta la 2.x el kit tenía una memoria propia (`.claude/memory/memory.jsonl` + hooks de
+`SessionStart`/`Stop`). Se retiró porque en la práctica no guardaba nada útil (solo marcadores de
+sesión, que además se filtraban al leer) y la memoria nativa la sustituye con ventaja. `--update`
+borra sus helpers si siguen intactos; `.claude/memory/` no se toca y sigue en `.gitignore`.
 
 ## Cadena de suministro (baseline §6.1)
 
@@ -164,6 +189,9 @@ cubre lo que usábamos. Si un proyecto lo tenía:
 
 **Integrados por stack** (vía `claude-code-templates`, solo los marcados `integrar`):
 - shared: `code-reviewer`, skills `clean-code`, `senior-security`; marketplace oficial de plugins.
+- code intelligence (plugins oficiales LSP, se indican por stack): `typescript-lsp` (Nest, Express,
+  Angular, React, Next, React Native), `pyright-lsp` (FastAPI, Django), `php-lsp`, `jdtls-lsp`
+  (Spring), `csharp-lsp` (.NET). Sin plugin oficial para Dart ni Solidity.
 - backend: `database-architect`, `test-engineer`; skill `docker-expert`.
 - frontend/mobile: `frontend-developer`, `ui-ux-designer`; skills `frontend-design`, `ui-design-system`.
 - frontend/react + mobile/react-native: dep npm de animación (`motion` / `react-native-reanimated`)
@@ -173,7 +201,8 @@ cubre lo que usábamos. Si un proyecto lo tenía:
 `architect-review` (backend) y `senior-frontend` (frontend).
 
 **Descartados** (extracto; los 11 con su motivo están en `components.json` → `discarded`):
-- `claude-mem` — duplica nuestra memoria y registra hooks propios.
+- `ruvnet/claude-flow` (Ruflo) — retirado en la 3.x; ver "Orquestación multiagente".
+- `claude-mem` — duplica la memoria nativa y registra hooks propios.
 - `mcp-expert` — atado al repo del CLI de davila7.
 - hooks de claude-code-templates (`lint-on-save`, `smart-formatting`, `security-scanner`, `tdd-gate`) —
   su instalador **pisa** nuestros arrays de hooks; su intención (format+lint+secret-scan) ya está en `hook-handler.cjs`.
@@ -198,8 +227,10 @@ que tú editaste:
 | El archivo sigue igual que como lo instaló el kit | Se actualiza ⬆️ |
 | Lo editaste tú y el kit **no** lo cambió | Se respeta, sin ruido |
 | Lo editaste tú **y** el kit lo cambió | Se conserva el tuyo; la versión nueva queda como `*.kit-new` y se te imprime el `diff` a ejecutar |
+| El kit ya no lo distribuye y sigue intacto | Se borra 🗑️ (p. ej. los helpers de la memoria propia de la 2.x) |
+| El kit ya no lo distribuye y lo editaste | Se conserva y se avisa |
 | `settings.json` | Se **fusiona**: tus permisos, hooks, `env` y demás claves se mantienen; se añaden los del kit |
-| `.claude/memory/`, `CLAUDE.project.md` | Nunca se tocan |
+| `.claude/agent-memory/`, `.claude/memory/`, `CLAUDE.project.md`, `docs/adr/` | Nunca se tocan |
 
 El `settings.json` merece detalle porque es el que la gente personaliza: la unión de `permissions`
 es sin duplicados, en `hooks` el kit solo reemplaza **sus** entradas (las que apuntan a sus helpers)

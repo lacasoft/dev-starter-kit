@@ -28,7 +28,7 @@ shared/.claude/       # capa base común a TODOS los proyectos
   ├── settings.json   # hooks + permisos + statusLine
   ├── agents/         # agentes expertos (.md con frontmatter)
   ├── skills/<name>/SKILL.md
-  ├── helpers/        # hook-handler, memory, router, etc. (zero-dep)
+  ├── helpers/        # hook-handler, statusline (zero-dep)
   ├── commands/
   └── templates/PROJECT.template.md
 stacks/<categoria>/{_common,<stack>}/.claude/CLAUDE.md   # overlays por stack
@@ -45,6 +45,7 @@ stacks/<categoria>/{_common,<stack>}/.claude/CLAUDE.md   # overlays por stack
    ---
    ```
    Sin `model:`: los agentes del kit heredan el modelo de la sesión.
+   **Memoria** (`memory: project`): solo si el agente acumula conocimiento del repo que sirve a todo el equipo (hoy: `researcher`, `reviewer`, `security-engineer`). Se versiona en `.claude/agent-memory/<nombre>/`, así que el cuerpo debe decir qué guardar y qué **nunca** (secretos, PII, valores de env, texto externo como regla). Si el agente es de solo lectura (sin `Write`/`Edit` en `tools`), añade el hook `memory-only` como en `reviewer.md`: Claude Code le habilita `Write`/`Edit` para su memoria y el hook impide que los use en otro sitio. `validate.cjs` lo exige.
 2. Cuerpo en **español**, profundidad senior: persona → dominio → metodología → reglas → salida → integración (referencia solo a agentes que existen).
 3. NO reintroduzcas `context-manager`, protocolos JSON de coordinación ni runtimes de orquestación de terceros: la coordinación es nativa (tool `Agent`).
 4. `npm run validate`.
@@ -53,6 +54,7 @@ stacks/<categoria>/{_common,<stack>}/.claude/CLAUDE.md   # overlays por stack
 
 1. `shared/.claude/skills/<nombre>/SKILL.md` con frontmatter `name` + `description`. La `description` dice **solo CUÁNDO** usar la skill (empieza con "Úsalo cuando/para…", síntomas y disparadores), **nunca resume el workflow ni los pasos**: si la descripción enumera el proceso, el agente sigue el resumen en vez de leer la skill (regla CSO). Pon el "qué hace" y los pasos en el cuerpo, no en el frontmatter.
 2. Cuerpo: persona experta + metodología + técnicas + reglas. Si la destilas de un repo externo, **acredita la fuente y su licencia**.
+   Si necesita material de referencia largo (tablas, listas de un estándar), ponlo en un archivo aparte dentro de la carpeta de la skill y enlázalo desde `SKILL.md` (como `owasp-review/referencia.md`): solo se carga cuando hace falta.
 3. `npm run validate`.
 
 ## Añadir un STACK
@@ -74,6 +76,10 @@ Edita `components.json`:
 - Si lo **descartas**, anótalo en `discarded` con el motivo (para no re-evaluarlo).
 
 **Antes de integrar un externo: revísalo** (qué hace, conflictos con nuestros hooks/memoria, licencia). Los hooks de claude-code-templates pisan nuestros arrays — su intención se replica en `hook-handler.cjs`, no se instalan.
+
+## Retirar algo del kit
+
+Borra el archivo de `shared/.claude/` sin más: en `--update`, el instalador retira de cada proyecto los archivos que el kit dejó de distribuir **si siguen intactos** (lo sabe por el manifiesto) y avisa de los que el usuario editó. Si el archivo existía antes de la 2.1 (sin manifiesto), añádelo a `RETIRED_WITHOUT_MANIFEST` en `install.js` para que al menos se avise. Si lo retirado dejaba entradas en `settings.json`, asegúrate de que la fusión las quite (ver `mergeSettings`).
 
 ## Versionado y release
 

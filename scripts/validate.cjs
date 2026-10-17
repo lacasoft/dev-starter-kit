@@ -46,6 +46,25 @@ const agents = walk(path.join(ROOT, "shared/.claude/agents"), (p) => p.endsWith(
 const skills = walk(path.join(ROOT, "shared/.claude/skills"), (p) => p.endsWith("SKILL.md"));
 [...agents, ...skills].forEach(checkFrontmatter);
 
+// --- memoria y hooks de agentes ---
+// `memory` solo admite tres scopes; uno mal escrito se ignora en silencio y el agente se queda
+// sin memoria. Y un hook de agente que llama a una acción inexistente del hook-handler no hace
+// nada (sale con 0): el guard que promete no existiría.
+const hookHandlerSrc = fs.readFileSync(path.join(ROOT, "shared/.claude/helpers/hook-handler.cjs"), "utf8");
+for (const a of agents) {
+  const fm = fs.readFileSync(a, "utf8").split("\n---")[0];
+  const mem = fm.match(/^memory:\s*(\S+)/m);
+  if (mem && !["user", "project", "local"].includes(mem[1])) errors.push(`${rel(a)}: memory "${mem[1]}" no válido (user|project|local)`);
+  for (const m of fm.matchAll(/hook-handler\.cjs\\?"?\s+([\w-]+)/g)) {
+    if (!hookHandlerSrc.includes(`case "${m[1]}"`)) errors.push(`${rel(a)}: su hook llama a la acción "${m[1]}", que hook-handler.cjs no implementa`);
+  }
+  // Un agente de solo lectura (sin Write/Edit en tools) con memoria necesita el guard memory-only.
+  const tools = (fm.match(/^tools:\s*(.+)$/m) || [])[1] || "";
+  if (mem && !/\b(Write|Edit)\b/.test(tools) && !fm.includes("memory-only")) {
+    errors.push(`${rel(a)}: es de solo lectura y tiene memoria, pero no lleva el hook memory-only (podría escribir en cualquier sitio)`);
+  }
+}
+
 // --- JSON ---
 const parsed = {};
 for (const j of ["components.json", "shared/.claude/settings.json", "package.json"]) {

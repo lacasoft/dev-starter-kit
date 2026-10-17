@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Entry-point único de hooks. Claude Code pasa el payload del hook como JSON por STDIN.
- * Acciones (1ª arg): pre-bash, pre-edit, post-edit, session-restore, session-end.
+ * Acciones (1ª arg): pre-bash, pre-edit, post-edit, session-start, memory-only.
  * Una acción desconocida (p. ej. de un settings.json antiguo) no hace nada y sale con 0.
  *
  * Diseño: solo interviene en casos explícitos. Con exit 2, los destructivos clásicos
@@ -16,14 +16,8 @@ const path = require("path");
 const { execSync } = require("child_process");
 
 const action = process.argv[2] || "";
-
-function load(mod) {
-  try {
-    return require(path.join(__dirname, mod));
-  } catch (_) {
-    return null;
-  }
-}
+// Raíz del proyecto: la que da Claude Code o, si no, la deducida de .claude/helpers/.
+const ROOT = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, "..", "..");
 
 function readPayload() {
   try {
@@ -158,6 +152,40 @@ function newPackages(cmd) {
   return pkgs;
 }
 
+// CLAUDE.project.md "vacío": no existe, o quitando comentarios HTML, títulos y líneas en blanco
+// quedan menos de 3 líneas (la plantilla recién creada no tiene ninguna: solo comentarios y títulos).
+function projectDefinitionIsEmpty(file) {
+  let txt;
+  try {
+    txt = fs.readFileSync(file, "utf8");
+  } catch (_) {
+    return true;
+  }
+  const contenido = txt
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("#"));
+  return contenido.length < 3;
+}
+
+// *.kit-new pendientes bajo .claude/ (acotado: esto corre al abrir cada sesión).
+function findKitNew(dir, out = [], budget = { n: 500 }) {
+  let entries = [];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch (_) {
+    return out;
+  }
+  for (const e of entries) {
+    if (budget.n-- <= 0 || out.length >= 20) break;
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) findKitNew(p, out, budget);
+    else if (e.name.endsWith(".kit-new")) out.push(path.relative(ROOT, p));
+  }
+  return out;
+}
+
 const CHECKLIST =
   "Valida antes de aceptar (baseline §6.1): 1) nombre exacto, ¿typosquat? 2) publisher oficial y mantenimiento vivo " +
   "3) versión pineada, nunca @latest/@alpha 4) publicada hace 7+ días (salvo fix de seguridad) 5) scripts pre/postinstall " +
@@ -262,19 +290,31 @@ switch (action) {
     break;
   }
 
-  case "session-restore": {
-    const session = load("session.cjs");
-    const prev = session && session.load();
-    if (prev && prev.summary) process.stdout.write(`↩️  Sesión previa: ${prev.summary}\n`);
+  case "session-start": {
+    // Lo que se imprime aquí entra como contexto de la sesión: solo avisos accionables, en una
+    // línea cada uno. Tras una compactación no se repiten (ya estaban en el contexto resumido).
+    if (payload.source === "compact") break;
+    const avisos = [];
+    if (projectDefinitionIsEmpty(path.join(ROOT, "CLAUDE.project.md"))) {
+      avisos.push("CLAUDE.project.md falta o sigue siendo la plantilla: sin él solo conoces reglas genéricas. Propón correr /project-context para rellenarlo con el contexto real del repo.");
+    }
+    const pendientes = findKitNew(path.join(ROOT, ".claude"));
+    if (pendientes.length) {
+      avisos.push(`Hay ${pendientes.length} archivo(s) *.kit-new de la última actualización del kit sin revisar (p. ej. ${pendientes[0]}).`);
+    }
+    if (avisos.length) process.stdout.write(avisos.map((a) => `📌 ${a}`).join("\n") + "\n");
     break;
   }
 
-  case "session-end": {
-    const session = load("session.cjs");
-    if (session) {
-      try {
-        session.save({ endedAt: new Date().toISOString(), reason: action });
-      } catch (_) {}
+  case "memory-only": {
+    // Para agentes de solo lectura con memoria persistente: Claude Code les habilita Write/Edit
+    // para que cuiden su memoria, y este guard impide que los usen en cualquier otro sitio.
+    const file = toolInput.file_path ? path.resolve(ROOT, toolInput.file_path) : "";
+    const memRoots = [".claude/agent-memory", ".claude/agent-memory-local"].map((d) => path.join(ROOT, d) + path.sep);
+    if (!memRoots.some((m) => file.startsWith(m))) {
+      denyPreTool(
+        `Este agente es de solo lectura: solo puede escribir en su memoria (.claude/agent-memory/<agente>/). ${file ? `Intentó escribir en ${path.relative(ROOT, file)}.` : ""} Devuelve el cambio propuesto como texto para que lo aplique quien te invocó.`
+      );
     }
     break;
   }
