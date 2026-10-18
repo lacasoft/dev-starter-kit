@@ -34,7 +34,7 @@ Dentro de **cualquier proyecto** (nuevo o heredado), sin clonar nada:
 ```bash
 npx -y github:lacasoft/dev-starter-kit              # interactivo
 npx -y github:lacasoft/dev-starter-kit --yes --all  # desatendido (todo)
-npx -y github:lacasoft/dev-starter-kit#v3.0.0       # fijar una versión (recomendado)
+npx -y github:lacasoft/dev-starter-kit#v3.0.1       # fijar una versión (recomendado)
 ```
 
 Toma siempre la última versión de `master` (o el tag indicado). Repo **público (MIT)**.
@@ -60,10 +60,12 @@ El instalador:
 2. Hace **backup** de tu `.claude/` si existe.
 3. Aplica la **capa base** (`shared/.claude` → `.claude/`): agentes, skills, helpers, settings, comandos.
 4. Scaffolda **`CLAUDE.project.md`**, compone **`./CLAUDE.md`** = `@CLAUDE.project.md` + `@.claude/CLAUDE.base.md` (bloque gestionado idempotente) y escribe los overlays del stack como **reglas** en `.claude/rules/kit/` (`<categoría>.md` + `<categoría>-<stack>.md`).
-5. Actualiza **`.gitignore`** (memoria/runtime/backups/secretos), idempotente. Los ejemplos de env (`.env.example`, `.env.sample`, `.env.template`) quedan **versionados**: van negados después de `.env.*`.
+5. Actualiza **`.gitignore`** (memoria/runtime/backups/secretos), idempotente. Los ejemplos de env (`.env.example`, `.env.sample`, `.env.template`) quedan **versionados**: van negados después de `.env.*`. En un proyecto Node añade también `node_modules/` (`npm init` no crea `.gitignore` y el kit instala devDeps).
 6. **Avisa de restos de Ruflo** (claude-flow) si los encuentra: servidores en `.mcp.json`, `.claude-flow/`, `.swarm/`, archivos en `.claude/` o instrucciones en `CLAUDE.md`. Solo los enumera con el comando para quitarlos; no borra nada que no instaló el kit.
 7. (opcional) Instala **agentes/skills externos** curados vía `claude-code-templates` y deps npm por stack.
    - Los **git hooks** (husky + lint-staged + commitlint) se omiten si el directorio no es un repositorio git: `npx husky init` fallaría y dejaría las devDeps instaladas para nada.
+   - Se instalan con **versión exacta** y solo versiones con 7+ días publicadas (`npm install -E --before=…`), la misma regla §6.1 que el kit exige al agente.
+   - El `pre-commit` corre lint-staged con lo que el proyecto **ya tiene** (prettier, eslint, `tsc --noEmit` si hay `tsconfig.json`) y se escribe `.lintstagedrc.mjs`. Si no hay nada que revisar, no se instala lint-staged ni se deja `pre-commit` (sin configuración bloquearía todos los commits); el mensaje se valida igual con commitlint. Una configuración de lint-staged existente se respeta.
 8. Indica los **plugins de Claude Code** a añadir (shared + por-stack), incluido el de **code intelligence (LSP)** del stack: go-to-definition, referencias y errores de tipos en vivo para el agente. El binario del language server lo instalas tú; el comando exacto sale en pantalla.
 9. Imprime un **resumen del proyecto**: stack y lenguaje, framework, paquetes, motores de datos, volumen de código, tests, calidad, entrega (CI/contenedores), git y entorno. Lo marcado con ⚠️ es un hueco frente a la baseline del kit.
 
@@ -303,7 +305,7 @@ recibir la copia vieja. La solución buena es la misma que exige la baseline §6
 versión** — y de paso hace la instalación reproducible:
 
 ```bash
-npx -y github:lacasoft/dev-starter-kit#v3.0.0 --update --yes    # por tag
+npx -y github:lacasoft/dev-starter-kit#v3.0.1 --update --yes    # por tag
 npx -y github:lacasoft/dev-starter-kit#<commit> --update --yes  # por commit (el SHA del tag)
 ```
 
@@ -324,4 +326,4 @@ Repo **público (MIT)** distribuido por `npx github:` → la rama **`master` deb
   (dry-run) y en un monorepo multi-stack, en cada PR. La lista sale de `scripts/stacks.cjs`, que la deriva de `install.js`.
 - **Cómo añadir** agentes, skills, stacks o externos: ver [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Versionado**: SemVer en `package.json` + `CHANGELOG.md`, con tag anotado por versión
-  (`v3.0.0`). Instala siempre pineando (`#v3.0.0`): es reproducible y evita la cache de npx.
+  (`v3.0.1`). Instala siempre pineando (`#v3.0.1`): es reproducible y evita la cache de npx.

@@ -621,7 +621,10 @@ function ensureGitignore() {
   const gi = path.join(CWD, ".gitignore");
   const cur = fs.existsSync(gi) ? fs.readFileSync(gi, "utf8") : "";
   const have = new Set(cur.split(/\r?\n/).map((l) => l.trim()));
-  const add = GITIGNORE.filter((n) => !have.has(n));
+  // `npm init` no crea .gitignore y el propio kit instala devDeps: sin esto, el primer
+  // `git add .` mete node_modules/ al repo.
+  const node = fs.existsSync(path.join(CWD, "package.json")) && !have.has("node_modules") && !have.has("/node_modules") ? ["node_modules/"] : [];
+  const add = [...node, ...GITIGNORE].filter((n) => !have.has(n));
   // Si acabamos de añadir ".env.*", reemitimos las negaciones aunque ya existan más arriba:
   // colocadas antes del patrón no harían nada, y la línea duplicada es inocua.
   const keep = GITIGNORE_KEEP.filter((n) => !have.has(n) || add.includes(".env.*"));
@@ -738,6 +741,40 @@ function isGitRepo() {
   }
 }
 
+// Configuración de lint-staged a partir de lo que el proyecto YA tiene (prettier, eslint,
+// tsconfig). Sin ninguna tarea devuelve null: un pre-commit con lint-staged sin configuración
+// falla en CADA commit ("could not find any valid configuration"), que es peor que no tenerlo.
+// Una sola entrada por tipo de archivo para que los comandos corran en orden y no a la vez.
+function lintStagedConfig(deps) {
+  const code = [];
+  if (deps.prettier) code.push("`prettier --write ${q(files)}`");
+  if (deps.eslint) code.push("`eslint --fix ${q(files)}`");
+  // tsc revisa el proyecto entero, no archivo por archivo: un error de tipos bloquea el commit.
+  if (fs.existsSync(path.join(CWD, "tsconfig.json"))) code.push('"tsc --noEmit"');
+  const usesFiles = Boolean(deps.prettier || deps.eslint);
+  const entries = [];
+  if (code.length === 1 && !usesFiles) entries.push(`  "*.{js,jsx,mjs,cjs,ts,tsx}": () => ${code[0]},`);
+  else if (code.length) entries.push(`  "*.{js,jsx,mjs,cjs,ts,tsx}": (files) => [${code.join(", ")}],`);
+  if (deps.prettier) entries.push('  "*.{json,md,css,scss,yml,yaml}": "prettier --write",');
+  if (!entries.length) return null;
+  return [
+    "// lint-staged: lo que corre sobre los archivos en stage antes de cada commit (lo generó dev-starter-kit).",
+    ...(usesFiles ? ["const q = (files) => files.map((f) => JSON.stringify(f)).join(\" \");", ""] : []),
+    "export default {",
+    ...entries,
+    "};",
+    "",
+  ].join("\n");
+}
+function hasLintStagedConfig(pkg) {
+  if (pkg["lint-staged"]) return true;
+  try {
+    return fs.readdirSync(CWD).some((f) => /^(\.lintstagedrc.*|lint-staged\.config\..+)$/.test(f));
+  } catch (_) {
+    return false;
+  }
+}
+
 // Ofrece tooling de git que la baseline exige (husky + lint-staged + commitlint + plantilla de PR).
 async function maybeSetupHusky() {
   const pkgPath = path.join(CWD, "package.json");
@@ -754,23 +791,46 @@ async function maybeSetupHusky() {
     console.log("  → Omitido: esto no es un repositorio git. Ejecuta `git init` y relanza el instalador.");
     return;
   }
+  const lintStaged = hasLintStagedConfig(pkg) ? "existente" : lintStagedConfig(deps);
+  console.log(
+    lintStaged === "existente"
+      ? "  pre-commit: lint-staged con la configuración que ya tiene el proyecto."
+      : lintStaged
+        ? `  pre-commit: lint-staged → ${[deps.prettier && "prettier", deps.eslint && "eslint", fs.existsSync(path.join(CWD, "tsconfig.json")) && "tsc --noEmit"].filter(Boolean).join(" + ")}.`
+        : "  pre-commit: nada que revisar todavía (sin prettier, eslint ni tsconfig). Solo se valida el mensaje del commit; relanza cuando tengas linter."
+  );
   if (!(await confirm("¿Configurarlos ahora? (instala devDeps)", FLAGS.all))) {
     console.log("  → Omitido. Hazlo luego o la regla aplica solo 'si el repo los tiene'.");
     return;
   }
-  if (run("npm install -D husky lint-staged @commitlint/cli @commitlint/config-conventional") && run("npx husky init")) {
+  // Baseline §6.1 aplicada al propio instalador: versiones exactas (-E) y solo versiones con al
+  // menos 7 días publicadas (--before), que es el plazo en que se suelen retirar los paquetes
+  // comprometidos.
+  const cooldown = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+  const paquetes = ["husky", ...(lintStaged ? ["lint-staged"] : []), "@commitlint/cli", "@commitlint/config-conventional"];
+  if (run(`npm install -D -E --before=${cooldown} ${paquetes.join(" ")}`) && run("npx --no-install husky init")) {
     if (!FLAGS.dryRun) {
       try {
+        const creados = ["commitlint.config.cjs", ".husky/commit-msg"];
         fs.writeFileSync(path.join(CWD, "commitlint.config.cjs"), 'module.exports = { extends: ["@commitlint/config-conventional"] };\n');
         fs.writeFileSync(path.join(CWD, ".husky", "commit-msg"), 'npx --no-install commitlint --edit "$1"\n');
-        fs.writeFileSync(path.join(CWD, ".husky", "pre-commit"), "npx --no-install lint-staged\n");
+        if (lintStaged) {
+          fs.writeFileSync(path.join(CWD, ".husky", "pre-commit"), "npx --no-install lint-staged\n");
+          creados.push(".husky/pre-commit");
+          if (lintStaged !== "existente") {
+            fs.writeFileSync(path.join(CWD, ".lintstagedrc.mjs"), lintStaged);
+            creados.push(".lintstagedrc.mjs");
+          }
+        } else {
+          // husky init deja un pre-commit con `npm test`, y el test por defecto de `npm init` sale
+          // con error: bloquearía todos los commits de un proyecto recién creado.
+          fs.rmSync(path.join(CWD, ".husky", "pre-commit"), { force: true });
+        }
         const prDir = path.join(CWD, ".github");
         fs.mkdirSync(prDir, { recursive: true });
-        fs.writeFileSync(
-          path.join(prDir, "pull_request_template.md"),
-          "## Summary\n\n## Test plan\n- [ ] \n"
-        );
-        console.log("  ➕ commitlint.config.cjs, .husky/{commit-msg,pre-commit}, .github/pull_request_template.md");
+        fs.writeFileSync(path.join(prDir, "pull_request_template.md"), "## Summary\n\n## Test plan\n- [ ] \n");
+        creados.push(".github/pull_request_template.md");
+        console.log(`  ➕ ${creados.join(", ")}`);
       } catch (e) {
         console.error(`  ⚠️  ${e.message}`);
       }
@@ -876,6 +936,15 @@ function envVars(file) {
     .filter(Boolean);
 }
 const plural = (n, sing, pl) => `${n} ${n === 1 ? sing : pl}`;
+// `tsc --init` (TypeScript 5.9+) genera module nodenext + verbatimModuleSyntax, y `npm init`
+// deja el paquete en CommonJS: la combinación rechaza todo import/export (TS1286/TS1295). Le
+// pasa a cualquier proyecto TypeScript nuevo, así que se avisa en el resumen.
+function tsModuleMismatch(pkg) {
+  const ts = readMaybe(path.join(CWD, "tsconfig.json")).replace(/^\s*\/\/.*$/gm, "");
+  if (!/"verbatimModuleSyntax"\s*:\s*true/.test(ts)) return false;
+  if (!/"module"\s*:\s*"node(next|16|18|20)"/i.test(ts)) return false;
+  return pkg.type !== "module";
+}
 function summarizeProject(stacks) {
   const stackId = stacks[0].id;
   const monorepo = stacks.length > 1;
@@ -894,6 +963,9 @@ function summarizeProject(stacks) {
   }
   if (pkg.engines?.node) lang.push(`Node ${pkg.engines.node}`);
   add("Stack", [describeStacks(stacks), ...lang].join(" · "));
+  if (tsModuleMismatch(pkg)) {
+    add("Módulos", '⚠️ tsconfig con verbatimModuleSyntax y package.json en CommonJS: ningún import/export compila. Pon "type": "module" en package.json');
+  }
 
   // En monorepo el framework vive en cada paquete, no en el package.json de la raíz.
   const fw = !monorepo && FRAMEWORK_DEP[stackId] && dep(FRAMEWORK_DEP[stackId]);

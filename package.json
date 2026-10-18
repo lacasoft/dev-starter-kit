@@ -1,6 +1,6 @@
 {
   "name": "@lacasoft/dev-starter-kit",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "private": true,
   "description": "Base .claude coherente (agentes, skills, helpers, orquestación multiagente nativa) instalable en cualquier proyecto lacasoft (backend/frontend/mobile/blockchain).",
   "bin": {

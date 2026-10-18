@@ -301,6 +301,60 @@ test("cambiar de stack retira la regla vieja intacta y respeta la que editaste",
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+// ---- proyecto Node creado desde cero (npm init + tsc --init) ----
+// Salió de instalar el kit en un proyecto recién creado: el primer commit fallaba (lint-staged sin
+// configuración), node_modules/ no estaba ignorado y los import no compilaban.
+function nodeDesdeCero(archivos = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-node0-"));
+  spawnSync("git", ["init", "-q"], { cwd: dir });
+  for (const [f, c] of Object.entries({ "package.json": '{"name":"x","type":"commonjs"}', ...archivos })) {
+    fs.writeFileSync(path.join(dir, f), c);
+  }
+  return dir;
+}
+const TSCONFIG_NUEVO = '{\n  "compilerOptions": {\n    // "rootDir": "./src",\n    "module": "nodenext",\n    "verbatimModuleSyntax": true,\n    "strict": true\n  }\n}\n';
+// --all + --dry-run: recorre el flujo de husky sin instalar nada (la CI no depende de la red).
+// Sin --no-external, que también se salta este paso.
+const planHusky = (dir) =>
+  spawnSync("node", [INSTALL, "--yes", "--stack", "backend/express", "--all", "--dry-run"], { cwd: dir, input: "", encoding: "utf8" }).stdout;
+
+test("husky: lint-staged con tsc si hay tsconfig, y dependencias con versión exacta y cooldown", () => {
+  const dir = nodeDesdeCero({ "tsconfig.json": TSCONFIG_NUEVO });
+  const out = planHusky(dir);
+  assert.match(out, /pre-commit: lint-staged → tsc --noEmit/);
+  assert.match(out, /npm install -D -E --before=\d{4}-\d{2}-\d{2} husky lint-staged /, "-E y --before aplican §6.1 al propio kit");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("husky: sin nada que revisar no instala lint-staged (un pre-commit sin config bloquea todos los commits)", () => {
+  const dir = nodeDesdeCero();
+  const out = planHusky(dir);
+  assert.match(out, /nada que revisar todavía/);
+  assert.doesNotMatch(out, /npm install[^\n]*lint-staged/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("husky: respeta una configuración de lint-staged que ya existe", () => {
+  const dir = nodeDesdeCero({ "package.json": '{"name":"x","lint-staged":{"*.js":"node --check"}}' });
+  assert.match(planHusky(dir), /configuración que ya tiene el proyecto/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test(".gitignore añade node_modules/ en un proyecto Node", () => {
+  const dir = proyecto();
+  assert.ok(fs.readFileSync(path.join(dir, ".gitignore"), "utf8").split("\n").includes("node_modules/"));
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("el resumen avisa si tsconfig y package.json no permiten import/export", () => {
+  const conCommonjs = nodeDesdeCero({ "tsconfig.json": TSCONFIG_NUEVO });
+  assert.match(correr(conCommonjs, ["--stack", "backend/express", "--dry-run"]).out, /Módulos\s+⚠️/);
+  const conModule = nodeDesdeCero({ "package.json": '{"name":"x","type":"module"}', "tsconfig.json": TSCONFIG_NUEVO });
+  assert.doesNotMatch(correr(conModule, ["--stack", "backend/express", "--dry-run"]).out, /Módulos/);
+  fs.rmSync(conCommonjs, { recursive: true, force: true });
+  fs.rmSync(conModule, { recursive: true, force: true });
+});
+
 test("--update nunca toca la memoria ni CLAUDE.project.md", () => {
   const dir = proyecto();
   const mem = path.join(dir, ".claude", "memory", "notas.md");
