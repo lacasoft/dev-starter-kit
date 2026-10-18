@@ -292,6 +292,35 @@ function parseStacks(specs) {
 }
 const describeStacks = (stacks) => stacks.map((s) => (s.dirs ? `${s.id} (${s.dirs.map((d) => `${d}/`).join(", ")})` : s.id)).join(" · ");
 
+// Stacks con los que se instaló el kit la última vez, para que --update no obligue a repetir
+// --stack (en un proyecto sin framework detectable, o en un monorepo con todas sus carpetas).
+// Desde 3.0.2 van en el manifiesto; las instalaciones 3.0.0/3.0.1 no los guardaban, pero sus
+// reglas de .claude/rules/kit/ llevan el stack en el nombre y las carpetas en `paths:`.
+function previousStacks(manifestJson) {
+  const guardados = (manifestJson && Array.isArray(manifestJson.stacks) ? manifestJson.stacks : []).filter(
+    (st) => st && STACKS[st.id] && (st.dirs === null || Array.isArray(st.dirs))
+  );
+  if (guardados.length) return guardados.map((st) => ({ id: st.id, dirs: st.dirs }));
+  const dir = path.join(CWD, ".claude", RULES_DIR);
+  let archivos = [];
+  try {
+    archivos = fs.readdirSync(dir).filter((f) => f.endsWith(".md"));
+  } catch (_) {
+    return null;
+  }
+  const deducidos = [];
+  for (const f of archivos) {
+    const id = f.replace(/\.md$/, "").replace("-", "/");
+    if (!STACKS[id]) continue; // backend.md (común) u otra regla
+    const fm = readMaybe(path.join(dir, f)).match(/^---\npaths:\n([\s\S]*?)\n---/);
+    const dirs = fm
+      ? [...fm[1].matchAll(/^\s*-\s*"(.+)\/\*\*"\s*$/gm)].map((m) => m[1].replace(/\\(.)/g, "$1"))
+      : null;
+    deducidos.push({ id, dirs: dirs && dirs.length ? dirs : null });
+  }
+  return deducidos.length ? deducidos : null;
+}
+
 const STACKS = {
   "backend/nestjs": 1, "backend/express": 1, "backend/fastapi": 1, "backend/django": 1,
   "backend/php": 1, "backend/spring": 1, "backend/dotnet": 1,
@@ -1074,8 +1103,18 @@ async function main() {
   console.log(`║   Dev Starter Kit v${VERSION} — instalador      `.slice(0, 45) + "║");
   console.log("╚════════════════════════════════════════════╝");
 
+  const claudeDir = path.join(CWD, ".claude");
+  const manifestPath = path.join(claudeDir, MANIFEST_FILE);
+  const prevManifest = readJSON(manifestPath);
+  const anteriores = FLAGS.stackArgs.length ? null : previousStacks(prevManifest);
+
   let stacks = null;
-  if (FLAGS.stackArgs.length) {
+  if (anteriores) {
+    stacks = anteriores;
+    console.log(`\n✅ Stack de la instalación anterior: ${describeStacks(stacks)}`);
+    console.log("   Para cambiarlo: --stack <category/stack>[:carpeta][,…]");
+    if (!(await confirm("¿Es correcto?", true))) stacks = null;
+  } else if (FLAGS.stackArgs.length) {
     const r = parseStacks(FLAGS.stackArgs);
     if (r.error) console.log(`⚠️  ${r.error}.`);
     else {
@@ -1099,7 +1138,7 @@ async function main() {
     if (stacks && !(await confirm("¿Es correcto?", true))) stacks = null;
   }
   if (!stacks) {
-    if (!FLAGS.stackArgs.length) console.log(`\n🔍 ${detectionHint()}`);
+    if (!FLAGS.stackArgs.length && !anteriores) console.log(`\n🔍 ${detectionHint()}`);
     console.log("\nStacks disponibles:\n  " + Object.keys(STACKS).join("\n  "));
     const answer = await ask("\nElige stack (category/stack; en monorepo, category/stack:carpeta separados por coma): ");
     const r = parseStacks((answer || "").split(",").map((x) => x.trim()).filter(Boolean));
@@ -1116,7 +1155,6 @@ async function main() {
     stacks = r.stacks;
   }
   // backup
-  const claudeDir = path.join(CWD, ".claude");
   if (fs.existsSync(claudeDir) && !FLAGS.dryRun) {
     const bk = `.claude.backup.${Date.now()}`;
     fs.cpSync(claudeDir, path.join(CWD, bk), { recursive: true });
@@ -1129,8 +1167,6 @@ async function main() {
 
   // 1) capa base
   console.log("\n📄 Aplicando capa base (shared/.claude)...");
-  const manifestPath = path.join(claudeDir, MANIFEST_FILE);
-  const prevManifest = readJSON(manifestPath);
   if (FLAGS.update) {
     console.log("  🔄 Modo actualización: se actualizan los archivos del kit que nadie ha tocado.");
     console.log(
@@ -1152,7 +1188,7 @@ async function main() {
   const remembered = retireFiles(layer, claudeDir);
   reportLayer(layer);
   if (!FLAGS.dryRun) {
-    fs.writeFileSync(manifestPath, JSON.stringify({ version: VERSION, files: { ...remembered, ...layer.next } }, null, 2) + "\n");
+    fs.writeFileSync(manifestPath, JSON.stringify({ version: VERSION, stacks, files: { ...remembered, ...layer.next } }, null, 2) + "\n");
   }
 
   // 2) Definición del proyecto + CLAUDE.md raíz (añade/actualiza nuestro bloque; respeta lo demás)

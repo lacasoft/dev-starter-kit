@@ -85,7 +85,7 @@ Borra el archivo de `shared/.claude/` sin más: en `--update`, el instalador ret
 
 - SemVer en `package.json` + entrada en `CHANGELOG.md`.
 - Como se distribuye por `npx github:`, los proyectos toman la rama por defecto: **`master` siempre debe estar verde** (CI en cada PR). Usa ramas `feat/…`, `fix/…` y PRs.
-- Para fijar versiones en un proyecto concreto: `npx github:lacasoft/dev-starter-kit#v3.0.1`.
+- Para fijar versiones en un proyecto concreto: `npx github:lacasoft/dev-starter-kit#v3.0.2`.
 
 ## Probar localmente
 

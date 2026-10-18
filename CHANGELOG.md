@@ -4,6 +4,12 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](htt
 
 ## [No publicado]
 
+## [3.0.2] - 2026-10-18
+
+### Fixed
+- **`--update --yes` fallaba en proyectos sin framework detectable.** Un proyecto TypeScript puro (o cualquiera instalado con `--stack` porque la detección no lo reconoce) obligaba a repetir `--stack` en cada actualización; sin él, salía con "No se pudo detectar el stack". En un monorepo había que repetir además todas las carpetas. Ahora el manifiesto guarda los stacks y sus carpetas, y el instalador los reutiliza (pide confirmar; con `--yes` los acepta). Para las instalaciones 3.0.0 y 3.0.1, que no los guardaban, se deducen de `.claude/rules/kit/`: el nombre de cada regla dice el stack y su `paths:` las carpetas. Un `--stack` explícito sigue mandando.
+- 4 tests (100 en total).
+
 ## [3.0.1] - 2026-10-18
 
 Correcciones salidas de instalar el kit en un proyecto TypeScript creado desde cero (`npm init -y` + `npx tsc --init`).
