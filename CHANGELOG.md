@@ -4,6 +4,19 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](htt
 
 ## [No publicado]
 
+## [3.0.1] - 2026-10-18
+
+Correcciones salidas de instalar el kit en un proyecto TypeScript creado desde cero (`npm init -y` + `npx tsc --init`).
+
+### Fixed
+- **El primer commit fallaba.** El instalador configuraba el `pre-commit` con lint-staged pero no escribía su configuración, y lint-staged sin configuración sale con error ("could not find any valid configuration"): ningún commit pasaba. Ahora genera `.lintstagedrc.mjs` con lo que el proyecto ya tiene (prettier, eslint y `tsc --noEmit` si hay `tsconfig.json`, en ese orden y sin correr a la vez). Si no hay nada que revisar, no instala lint-staged y retira el `pre-commit` que deja `husky init` (corre `npm test`, y el test por defecto de `npm init` sale con error). Una configuración de lint-staged existente se respeta.
+- **`node_modules/` no quedaba ignorado.** `npm init` no crea `.gitignore` y el kit solo añadía sus entradas, pese a instalar devDeps: el primer `git add .` metía las dependencias al repo. Ahora se añade `node_modules/` en proyectos Node.
+- **El instalador incumplía su propia §6.1.** husky, lint-staged y commitlint se instalaban con rangos `^` y sin filtro de antigüedad. Ahora con versión exacta (`-E`) y solo versiones con 7+ días publicadas (`--before`).
+
+### Added
+- **Aviso en el resumen** cuando `tsconfig.json` tiene `verbatimModuleSyntax` con `module: nodenext` (lo que genera `tsc --init` desde TypeScript 5.9) y `package.json` está en CommonJS (lo que deja `npm init`): en esa combinación ningún `import`/`export` compila (TS1286/TS1295). Le pasa a todo proyecto TypeScript nuevo; el aviso dice el arreglo (`"type": "module"`).
+- 5 tests (96 en total). Los del flujo de husky corren en dry-run, sin red.
+
 ## [3.0.0] - 2026-10-17
 
 Estándares de seguridad y calidad al día (OWASP Top 10:2025, ASVS 5.0, CWE Top 25 2025, listas OWASP de LLM y agentes 2026, ISO/IEC 25010:2023), memoria y contexto con las capacidades nativas de Claude Code, monorepos multi-stack con reglas por carpeta, y fuera Ruflo (claude-flow).
