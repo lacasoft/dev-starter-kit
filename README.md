@@ -34,7 +34,7 @@ Dentro de **cualquier proyecto** (nuevo o heredado), sin clonar nada:
 ```bash
 npx -y github:lacasoft/dev-starter-kit              # interactivo
 npx -y github:lacasoft/dev-starter-kit --yes --all  # desatendido (todo)
-npx -y github:lacasoft/dev-starter-kit#v3.0.1       # fijar una versión (recomendado)
+npx -y github:lacasoft/dev-starter-kit#v3.0.2       # fijar una versión (recomendado)
 ```
 
 Toma siempre la última versión de `master` (o el tag indicado). Repo **público (MIT)**.
@@ -261,6 +261,8 @@ cubre lo que usábamos. Si un proyecto lo tenía:
 npx -y github:lacasoft/dev-starter-kit --update --yes
 ```
 
+No hace falta repetir `--stack`: el instalador **recuerda los stacks** de la instalación anterior (y sus carpetas, en un monorepo) y solo pide confirmar. Para cambiarlo, pasa `--stack` de nuevo.
+
 Por defecto el instalador es **aditivo** (añade lo nuevo, no pisa lo existente). Con **`--update`**
 (alias `--force`) trae además la última versión de agentes, skills y helpers — **sin que pierdas
 nada tuyo**, que es justo lo que un starter kit debe evitar.
@@ -305,7 +307,7 @@ recibir la copia vieja. La solución buena es la misma que exige la baseline §6
 versión** — y de paso hace la instalación reproducible:
 
 ```bash
-npx -y github:lacasoft/dev-starter-kit#v3.0.1 --update --yes    # por tag
+npx -y github:lacasoft/dev-starter-kit#v3.0.2 --update --yes    # por tag
 npx -y github:lacasoft/dev-starter-kit#<commit> --update --yes  # por commit (el SHA del tag)
 ```
 
@@ -326,4 +328,4 @@ Repo **público (MIT)** distribuido por `npx github:` → la rama **`master` deb
   (dry-run) y en un monorepo multi-stack, en cada PR. La lista sale de `scripts/stacks.cjs`, que la deriva de `install.js`.
 - **Cómo añadir** agentes, skills, stacks o externos: ver [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Versionado**: SemVer en `package.json` + `CHANGELOG.md`, con tag anotado por versión
-  (`v3.0.1`). Instala siempre pineando (`#v3.0.1`): es reproducible y evita la cache de npx.
+  (`v3.0.2`). Instala siempre pineando (`#v3.0.2`): es reproducible y evita la cache de npx.

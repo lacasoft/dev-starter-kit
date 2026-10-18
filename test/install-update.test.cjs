@@ -355,6 +355,62 @@ test("el resumen avisa si tsconfig y package.json no permiten import/export", ()
   fs.rmSync(conModule, { recursive: true, force: true });
 });
 
+// ---- --update recuerda el stack ----
+// Un proyecto sin framework detectable (TypeScript puro) se instala con --stack; antes, cada
+// --update --yes fallaba con "No se pudo detectar el stack" si no se repetía.
+function sinFramework() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-sinfw-"));
+  fs.writeFileSync(path.join(dir, "package.json"), '{"name":"x"}');
+  return dir;
+}
+
+test("--update sin --stack reutiliza el stack de la instalación anterior", () => {
+  const dir = sinFramework();
+  assert.equal(correr(dir, ["--stack", "backend/express"]).status, 0);
+  assert.deepEqual(leerJSON(path.join(dir, ".claude", ".kit-manifest.json")).stacks, [{ id: "backend/express", dirs: null }]);
+  const r = correr(dir, ["--update"]);
+  assert.equal(r.status, 0, r.out);
+  assert.match(r.out, /Stack de la instalación anterior: backend\/express/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("instalación 3.0.x sin stacks en el manifiesto: se deducen de .claude/rules/kit/", () => {
+  const dir = sinFramework();
+  correr(dir, ["--stack", "backend/express"]);
+  const mp = path.join(dir, ".claude", ".kit-manifest.json");
+  const m = leerJSON(mp);
+  delete m.stacks; // así lo dejaban 3.0.0 y 3.0.1
+  fs.writeFileSync(mp, JSON.stringify(m));
+  const r = correr(dir, ["--update"]);
+  assert.equal(r.status, 0, r.out);
+  assert.match(r.out, /instalación anterior: backend\/express/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("monorepo: --update conserva los stacks y sus carpetas sin repetir --stack", () => {
+  const dir = sinFramework();
+  correr(dir, ["--stack", "backend/nestjs:apps/api,frontend/nextjs:apps/web,frontend/nextjs:apps/admin"]);
+  const mp = path.join(dir, ".claude", ".kit-manifest.json");
+  const m = leerJSON(mp);
+  delete m.stacks; // también desde las reglas (paths:)
+  fs.writeFileSync(mp, JSON.stringify(m));
+  const antes = regla(dir, "frontend-nextjs.md");
+  const r = correr(dir, ["--update"]);
+  assert.equal(r.status, 0, r.out);
+  assert.match(r.out, /backend\/nestjs \(apps\/api\/\)/);
+  assert.equal(regla(dir, "frontend-nextjs.md"), antes, "las rutas de cada regla no cambian");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("--stack explícito gana sobre el stack recordado", () => {
+  const dir = sinFramework();
+  correr(dir, ["--stack", "backend/express"]);
+  const r = correr(dir, ["--update", "--stack", "backend/fastapi"]);
+  assert.match(r.out, /Stack indicado: backend\/fastapi/);
+  assert.deepEqual(leerJSON(path.join(dir, ".claude", ".kit-manifest.json")).stacks, [{ id: "backend/fastapi", dirs: null }]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test("--update nunca toca la memoria ni CLAUDE.project.md", () => {
   const dir = proyecto();
   const mem = path.join(dir, ".claude", "memory", "notas.md");
