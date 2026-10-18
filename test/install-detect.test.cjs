@@ -23,7 +23,7 @@ function detectar(archivos) {
     fs.mkdirSync(path.dirname(destino), { recursive: true });
     fs.writeFileSync(destino, contenido);
   }
-  const r = spawnSync("node", [INSTALL, "--yes", "--no-flow", "--no-external", "--dry-run"], {
+  const r = spawnSync("node", [INSTALL, "--yes", "--no-external", "--dry-run"], {
     cwd: dir,
     input: "",
     encoding: "utf8",
@@ -109,4 +109,33 @@ test("no confunde artefactos de build con el proyecto", () => {
 test("la pista distingue otros ecosistemas sin overlay", () => {
   assert.match(detectar({ "go.mod": "module x" }).salida, /Go/);
   assert.match(detectar({ "Cargo.toml": "[package]" }).salida, /Rust/);
+});
+
+// ---- monorepo: un stack por carpeta ----
+test("monorepo: detecta un stack por paquete, incluido packages/", () => {
+  const r = detectar({
+    "package.json": '{"private":true,"workspaces":["apps/*","packages/*"]}',
+    "apps/api/package.json": '{"dependencies":{"@nestjs/core":"^11"}}',
+    "packages/web/package.json": '{"dependencies":{"next":"15"}}',
+  });
+  assert.match(r.salida, /Monorepo: 2 stacks/);
+  assert.match(r.salida, /backend\/nestjs\s+→ apps\/api\//);
+  assert.match(r.salida, /frontend\/nextjs\s+→ packages\/web\//);
+});
+
+test("la misma tecnología en varias carpetas sigue siendo un solo stack", () => {
+  const r = detectar({
+    "src/Api/Api.csproj": '<Project Sdk="Microsoft.NET.Sdk.Web" />',
+    "tests/Api.Tests/Api.Tests.csproj": '<Project Sdk="Microsoft.NET.Sdk" />',
+  });
+  assert.equal(r.stack, "backend/dotnet");
+  assert.doesNotMatch(r.salida, /Monorepo/);
+});
+
+test("lo que cuelga de un proyecto detectado no cuenta como otro proyecto", () => {
+  const r = detectar({
+    "mobile/package.json": '{"dependencies":{"react-native":"0.76"}}',
+    "mobile/android/build.gradle": 'apply plugin: "io.spring.dependency-management"',
+  });
+  assert.equal(r.stack, "mobile/react-native");
 });

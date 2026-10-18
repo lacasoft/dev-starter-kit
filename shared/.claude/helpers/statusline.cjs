@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-// Statusline: lee el JSON de Claude Code por stdin y muestra modelo | carpeta | rama git | memoria.
+// Statusline: lee el JSON de Claude Code por stdin y muestra modelo | carpeta | rama git.
 const fs = require("fs");
-const path = require("path");
 
 let d = {};
 try {
@@ -21,15 +20,6 @@ try {
     .trim();
 } catch (_) {}
 
-// Nº de entradas de memoria del proyecto (si existe). Relativo a este helper
-// (.claude/helpers/ → ../memory), no al cwd, para no fallar desde subdirectorios.
-let mem = 0;
-try {
-  const memFile = path.resolve(__dirname, "..", "memory", "memory.jsonl");
-  if (fs.existsSync(memFile)) mem = fs.readFileSync(memFile, "utf8").split("\n").filter(Boolean).length;
-} catch (_) {}
-
 const parts = [`🤖 ${model}`, `📁 ${carpeta}`];
 if (rama) parts.push(`🌿 ${rama}`);
-if (mem) parts.push(`🧠 ${mem}`);
 process.stdout.write(parts.join(" | "));

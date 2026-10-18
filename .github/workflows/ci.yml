@@ -27,7 +27,15 @@ jobs:
           for s in $(node scripts/stacks.cjs); do
             echo "--- $s ---"
             tmp="$(mktemp -d)"
-            ( cd "$tmp" && node "$GITHUB_WORKSPACE/install.js" --yes --no-flow --no-external --stack "$s" --dry-run >/dev/null )
+            ( cd "$tmp" && node "$GITHUB_WORKSPACE/install.js" --yes --no-external --stack "$s" --dry-run >/dev/null )
             rm -rf "$tmp"
           done
           echo "✅ instalador OK en todos los stacks ($(node scripts/stacks.cjs | wc -l))"
+      - name: Smoke test del instalador (monorepo multi-stack, dry-run)
+        run: |
+          set -e
+          tmp="$(mktemp -d)"
+          ( cd "$tmp" && node "$GITHUB_WORKSPACE/install.js" --yes --no-external --dry-run \
+              --stack backend/nestjs:apps/api,frontend/nextjs:apps/web,mobile/flutter:apps/mobile >/dev/null )
+          rm -rf "$tmp"
+          echo "✅ instalador OK en monorepo"

@@ -82,6 +82,17 @@ test("PERMITE npx --no-install (binario ya presente)", () =>
   assert.equal(decisionDe("npx --no-install prettier --write src/a.ts"), null));
 test("ASK al instalar un componente externo en .claude/", () =>
   assert.equal(decisionDe("npx -y claude-code-templates@1.28.16 --agent code-reviewer --yes"), "ask"));
+// Otros ejecutores que descargan y corren en un paso: antes pasaban sin preguntar.
+test("ASK en pnpm dlx", () => assert.equal(decisionDe("pnpm dlx create-vite@5 app"), "ask"));
+test("ASK en yarn dlx", () => assert.equal(decisionDe("yarn dlx cowsay@1 hola"), "ask"));
+test("ASK en bunx", () => assert.equal(decisionDe("bunx prisma@5 generate"), "ask"));
+test("ASK en uvx", () => assert.equal(decisionDe("uvx ruff@0.6.0 check ."), "ask"));
+test("ASK en pipx run", () => assert.equal(decisionDe("pipx run black==24.1.0 ."), "ask"));
+test("PERMITE pnpm run (script del propio repo, no dlx)", () => assert.equal(decisionDe("pnpm run build"), null));
+test("ASK al registrar un servidor MCP", () =>
+  assert.equal(decisionDe("claude mcp add github -- npx -y @modelcontextprotocol/server-github"), "ask"));
+test("el motivo del ASK incluye la antigüedad mínima", () =>
+  assert.match(bash("npm install express@5.1.0").permissionDecisionReason, /7\+ días/));
 
 // ---- pre-edit: escáner de secretos ----
 // Fixtures tipo-secreto construidos por concatenación para no dejar literales
@@ -111,3 +122,54 @@ test(".env emite additionalContext sin bloquear", () => {
   const d = decision({ tool_input: { file_path: ".env", content: "FOO=bar" } });
   assert.ok(d && d.additionalContext && !d.permissionDecision);
 });
+
+// ---- session-start: avisos accionables al abrir sesión ----
+const fs = require("node:fs");
+const os = require("node:os");
+function sessionStart(files, payload = { source: "startup" }) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-session-"));
+  for (const [nombre, contenido] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(dir, nombre)), { recursive: true });
+    fs.writeFileSync(path.join(dir, nombre), contenido);
+  }
+  const r = spawnSync("node", [HH, "session-start"], {
+    input: JSON.stringify(payload),
+    encoding: "utf8",
+    env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
+  });
+  fs.rmSync(dir, { recursive: true, force: true });
+  return { code: r.status, out: r.stdout || "" };
+}
+const PLANTILLA = fs.readFileSync(path.join(__dirname, "..", "shared", "templates", "PROJECT.template.md"), "utf8");
+const RELLENO = "# App\n\n## Stack\nNestJS 11 · pnpm\n\n## Comandos\n- pnpm test\n- pnpm lint\n- pnpm build\n";
+
+test("session-start sugiere /project-context si CLAUDE.project.md falta", () =>
+  assert.match(sessionStart({}).out, /project-context/));
+test("session-start sugiere /project-context si sigue siendo la plantilla", () =>
+  assert.match(sessionStart({ "CLAUDE.project.md": PLANTILLA }).out, /project-context/));
+test("session-start calla si CLAUDE.project.md está relleno", () =>
+  assert.equal(sessionStart({ "CLAUDE.project.md": RELLENO }).out, ""));
+test("session-start no repite avisos tras una compactación", () =>
+  assert.equal(sessionStart({}, { source: "compact" }).out, ""));
+test("session-start avisa de *.kit-new pendientes", () =>
+  assert.match(sessionStart({ "CLAUDE.project.md": RELLENO, ".claude/agents/coder.md.kit-new": "x" }).out, /kit-new/));
+
+// ---- memory-only: agentes de solo lectura que solo escriben en su memoria ----
+function memoryOnly(file) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-mem-"));
+  const r = spawnSync("node", [HH, "memory-only"], {
+    input: JSON.stringify({ tool_input: { file_path: path.join(dir, file) } }),
+    encoding: "utf8",
+    env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
+  });
+  fs.rmSync(dir, { recursive: true, force: true });
+  if (!(r.stdout || "").trim()) return null;
+  return JSON.parse(r.stdout).hookSpecificOutput.permissionDecision;
+}
+test("memory-only PERMITE escribir en su memoria", () =>
+  assert.equal(memoryOnly(".claude/agent-memory/reviewer/MEMORY.md"), null));
+test("memory-only PERMITE la memoria local", () =>
+  assert.equal(memoryOnly(".claude/agent-memory-local/reviewer/MEMORY.md"), null));
+test("memory-only DENIEGA escribir código", () => assert.equal(memoryOnly("src/app.ts"), "deny"));
+test("memory-only DENIEGA un prefijo engañoso", () =>
+  assert.equal(memoryOnly(".claude/agent-memory-evil/x.md"), "deny"));

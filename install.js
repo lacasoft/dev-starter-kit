@@ -1,22 +1,23 @@
 #!/usr/bin/env node
 /**
- * install.js — Instalador del Dev Starter Kit (capa coherente + enjambre híbrido).
+ * install.js — Instalador del Dev Starter Kit (capa coherente + orquestación multiagente nativa).
  *
  * Hace:
  *  1. Detecta el stack (category/stack) o lo pides tú.
  *  2. Backup de .claude/ y copia la capa base (shared/.claude → .claude): agentes, skills, helpers, settings, comandos.
- *  3. Scaffolda CLAUDE.project.md y compone ./CLAUDE.md (project + base + común + stack) en bloque gestionado.
+ *  3. Scaffolda CLAUDE.project.md, compone ./CLAUDE.md (project + base) en bloque gestionado y escribe los
+ *     overlays del stack como reglas en .claude/rules/kit/ (en monorepo, acotadas a la carpeta de cada stack).
  *  4. Actualiza .gitignore (memoria/runtime/backups/secretos).
- *  5. (opcional) Orquesta claude-flow init para el enjambre real (primero; nuestra capa va encima sin pisarlo).
+ *  5. Avisa de restos de Ruflo (claude-flow): el kit ya no lo integra.
  *  6. (opcional) Instala agentes/skills externos curados (claude-code-templates) y deps npm por stack.
  *  7. Indica los plugins de Claude Code a añadir (shared + por-stack).
  *  8. Imprime un resumen del proyecto (stack, tests, calidad, entrega, git, entorno) y sus huecos.
  *
  * Flags:
- *   --stack <cat/stack>  fuerza el stack (si no, autodetecta)
+ *   --stack <cat/stack>[:dir][,…]  fuerza el stack (si no, autodetecta). En monorepo, uno por carpeta:
+ *                                  --stack backend/nestjs:apps/api,frontend/nextjs:apps/web
  *   --yes, -y            no interactivo: usa el default de cada confirmación
- *   --all                acepta TODO (claude-flow + externos + deps). Combina con --yes para desatendido total
- *   --no-flow            no ejecuta claude-flow init
+ *   --all                acepta TODO (externos + deps). Combina con --yes para desatendido total
  *   --no-external        no instala componentes externos (claude-code-templates / npm)
  *   --update, --force    sobrescribe la capa base con la última versión (conserva memoria y CLAUDE.project.md)
  *   --dry-run            simula: imprime qué haría, no escribe ni ejecuta
@@ -34,17 +35,17 @@ const argv = process.argv.slice(2);
 const FLAGS = {
   yes: argv.includes("--yes") || argv.includes("-y"),
   all: argv.includes("--all"),
-  noFlow: argv.includes("--no-flow"),
+  // Retirado junto con Ruflo (claude-flow). Se acepta para no romper scripts, pero no hace nada.
+  noFlowLegacy: argv.includes("--no-flow"),
   noExternal: argv.includes("--no-external"),
   update: argv.includes("--update") || argv.includes("--force"),
   dryRun: argv.includes("--dry-run"),
   help: argv.includes("--help") || argv.includes("-h"),
-  stack:
-    argv.includes("--stack") &&
-    argv[argv.indexOf("--stack") + 1] &&
-    !argv[argv.indexOf("--stack") + 1].startsWith("--")
-      ? argv[argv.indexOf("--stack") + 1]
-      : null,
+  // --stack se puede repetir y admite listas: --stack backend/nestjs:apps/api,frontend/nextjs:apps/web
+  stackArgs: argv
+    .flatMap((a, i) => (a === "--stack" && argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[i + 1].split(",") : []))
+    .map((s) => s.trim())
+    .filter(Boolean),
 };
 
 if (FLAGS.help) {
@@ -54,14 +55,16 @@ Dev Starter Kit — instalador (.claude)
 Uso:  node install.js [opciones]
 
   --stack <cat/stack>  fuerza el stack (backend/nestjs, frontend/react, mobile/flutter, ...)
+                       En monorepo, uno por carpeta: --stack backend/nestjs:apps/api,frontend/nextjs:apps/web
+                       (cada overlay se carga solo al trabajar en su carpeta)
   --yes, -y            no interactivo: usa el default de cada confirmación (conservador)
-  --all                acepta TODO (claude-flow + externos + deps). Usa "--yes --all" para desatendido total
-  --no-flow            no ejecuta claude-flow init
+  --all                acepta TODO (externos + deps). Usa "--yes --all" para desatendido total
   --no-external        no instala componentes externos
   --update, --force    actualiza la capa base sin perder nada tuyo: solo reescribe los archivos
                        que siguen igual que como los dejó el kit (según .claude/.kit-manifest.json).
                        Lo que hayas editado se conserva y la versión nueva queda como *.kit-new.
-                       settings.json se FUSIONA (tus permisos, hooks y env se mantienen).
+                       settings.json se FUSIONA (tus permisos, hooks y env se mantienen,
+                       salvo lo que apunte a Ruflo/claude-flow, que se retira).
                        Memoria y CLAUDE.project.md intactos. Hace backup antes.
   --dry-run            simula sin escribir ni ejecutar
   --help, -h           esta ayuda
@@ -71,8 +74,8 @@ Sin TTY (CI, agentes, tuberías) puedes pipear las respuestas una por línea
 Con --yes el stack debe ser detectable o venir en --stack, o sale con error.
 
 Hace: backup de .claude → aplica capa base (agentes/skills/helpers/settings) →
-      compone CLAUDE.md (base+común+stack) + CLAUDE.project.md → actualiza .gitignore →
-      (opc.) claude-flow init → (opc.) externos → indica plugins de Claude Code.
+      compone CLAUDE.md + CLAUDE.project.md + reglas del stack → actualiza .gitignore →
+      avisa de restos de Ruflo → (opc.) externos → indica plugins de Claude Code.
 `);
   process.exit(0);
 }
@@ -176,11 +179,10 @@ const JAVA_BUILD_FILES = ["pom.xml", "build.gradle", "build.gradle.kts", "settin
 const javaBuildFiles = (dir = CWD) => JAVA_BUILD_FILES.filter((f) => fs.existsSync(path.join(dir, f)));
 
 // Directorios que nunca contienen el proyecto: artefactos, dependencias y basura de build.
-// `packages/` se salta a propósito: en un monorepo, elegir un paquete al azar sería peor que
-// pedir --stack.
+// `packages/` sí se recorre: en un monorepo cada paquete detectado recibe su propio overlay.
 const SKIP_SCAN = new Set([
   "node_modules", "bin", "obj", "target", "dist", "build", "out", "vendor",
-  "venv", "__pycache__", "coverage", "packages", "tmp", "temp", "logs",
+  "venv", "__pycache__", "coverage", "tmp", "temp", "logs",
 ]);
 // Subdirectorios candidatos, primero los más cercanos a la raíz (búsqueda en anchura).
 // Acotado en profundidad y en número: esto corre en el arranque del instalador.
@@ -258,16 +260,37 @@ function detectIn(dir) {
 
 // La raíz manda. Solo si ahí no hay nada se buscan subdirectorios, porque en .NET, Java y
 // muchos repos el manifiesto vive un nivel más abajo (Proyecto/Proyecto.csproj, src/App/...).
-// Devuelve dónde encontró la evidencia para que la decisión sea auditable, no un acto de fe.
-function detectStack() {
+// Devuelve TODOS los proyectos encontrados y dónde, para que la decisión sea auditable: uno es
+// el caso normal; varios con stacks distintos es un monorepo. Lo que cuelga de un proyecto ya
+// detectado no se vuelve a evaluar (su ios/ o su android/ no son otro proyecto).
+function detectStacks() {
   const enRaiz = detectIn(CWD);
-  if (enRaiz) return { id: enRaiz, dir: null };
+  if (enRaiz) return [{ id: enRaiz, dir: null }];
+  const found = [];
   for (const sub of candidateDirs()) {
+    if (found.some((f) => sub.startsWith(path.join(CWD, f.dir) + path.sep))) continue;
     const id = detectIn(sub);
-    if (id) return { id, dir: path.relative(CWD, sub) };
+    if (id) found.push({ id, dir: path.relative(CWD, sub).split(path.sep).join("/") });
   }
-  return null;
+  return found;
 }
+
+// "backend/nestjs" (todo el repo) o "backend/nestjs:apps/api" (solo esa carpeta). Un mismo stack
+// en varias carpetas se agrupa en un overlay con varias rutas; `dirs: null` = se carga siempre.
+function parseStacks(specs) {
+  const byId = new Map();
+  for (const spec of specs) {
+    const i = spec.indexOf(":");
+    const id = (i === -1 ? spec : spec.slice(0, i)).trim();
+    const dir = i === -1 ? "" : spec.slice(i + 1).trim().replace(/^\.\/+/, "").replace(/\/+$/, "");
+    if (!STACKS[id]) return { error: `Stack inválido: "${id}"` };
+    if (!byId.has(id)) byId.set(id, []);
+    if (!dir) byId.set(id, null);
+    else if (byId.get(id) !== null) byId.get(id).push(dir);
+  }
+  return { stacks: [...byId].map(([id, dirs]) => ({ id, dirs })) };
+}
+const describeStacks = (stacks) => stacks.map((s) => (s.dirs ? `${s.id} (${s.dirs.map((d) => `${d}/`).join(", ")})` : s.id)).join(" · ");
 
 const STACKS = {
   "backend/nestjs": 1, "backend/express": 1, "backend/fastapi": 1, "backend/django": 1,
@@ -298,10 +321,6 @@ function applyLayer(src, dest, ctx, base) {
     const s = path.join(src, entry.name);
     const d = path.join(dest, entry.name);
     const rel = path.relative(base, s).split(path.sep).join("/");
-    if (ctx.skip && ctx.skip(rel)) {
-      console.log(`  ⏭️  omitido (claude-flow lo cubre): ${rel}`);
-      continue;
-    }
     if (entry.isDirectory()) {
       if (!FLAGS.dryRun) fs.mkdirSync(d, { recursive: true });
       applyLayer(s, d, ctx, base);
@@ -314,7 +333,7 @@ function applyLayer(src, dest, ctx, base) {
     // settings.json es el archivo que la gente personaliza (permisos, hooks propios, env).
     // En una actualización se FUSIONA, jamás se reemplaza.
     if (rel === "settings.json" && existed && FLAGS.update) {
-      const text = JSON.stringify(mergeSettings(s, d), null, 2) + "\n";
+      const text = JSON.stringify(mergeSettings(s, d, ctx.retiredSettings), null, 2) + "\n";
       ctx.next[rel] = hash(Buffer.from(text));
       if (hash(fs.readFileSync(d)) === ctx.next[rel]) {
         ctx.same++;
@@ -326,36 +345,77 @@ function applyLayer(src, dest, ctx, base) {
       continue;
     }
 
-    const srcBuf = fs.readFileSync(s);
-    ctx.next[rel] = hash(srcBuf);
-    if (!existed) {
-      if (!FLAGS.dryRun) fs.writeFileSync(d, srcBuf);
-      console.log(`  ${dry}➕ ${shown}`);
-      ctx.added++;
-      continue;
-    }
-    const destHash = hash(fs.readFileSync(d));
-    if (destHash === ctx.next[rel]) {
-      ctx.same++;
-      continue;
-    }
-    if (!FLAGS.update) {
-      ctx.kept++;
-      continue;
-    }
-    if (ctx.prev[rel] === destHash) {
-      if (!FLAGS.dryRun) fs.writeFileSync(d, srcBuf);
-      console.log(`  ${dry}⬆️  ${shown}`);
-      ctx.updated++;
-    } else if (ctx.prev[rel] === ctx.next[rel]) {
-      // Lo editaste tú y el kit NO ha cambiado este archivo: no hay versión nueva que ofrecerte.
-      ctx.userOwned++;
-    } else {
-      if (!FLAGS.dryRun) fs.writeFileSync(`${d}.kit-new`, srcBuf);
-      console.log(`  ${dry}⚠️  ${shown} — lo tuyo se conserva, la versión nueva queda en ${entry.name}.kit-new`);
-      ctx.conflicts.push(shown);
-    }
+    applyFile(rel, fs.readFileSync(s), d, ctx);
   }
+}
+
+// Las reglas de applyLayer para UN archivo, venga de shared/.claude o lo genere el instalador
+// (los overlays del stack): así ambos se actualizan igual y nunca se pisa una edición tuya.
+function applyFile(rel, srcBuf, d, ctx) {
+  const dry = FLAGS.dryRun ? "(dry-run) " : "";
+  const shown = path.relative(CWD, d);
+  ctx.next[rel] = hash(srcBuf);
+  if (!fs.existsSync(d)) {
+    if (!FLAGS.dryRun) {
+      fs.mkdirSync(path.dirname(d), { recursive: true });
+      fs.writeFileSync(d, srcBuf);
+    }
+    console.log(`  ${dry}➕ ${shown}`);
+    ctx.added++;
+    return;
+  }
+  const destHash = hash(fs.readFileSync(d));
+  if (destHash === ctx.next[rel]) {
+    ctx.same++;
+    return;
+  }
+  if (!FLAGS.update) {
+    ctx.kept++;
+    return;
+  }
+  if (ctx.prev[rel] === destHash) {
+    if (!FLAGS.dryRun) fs.writeFileSync(d, srcBuf);
+    console.log(`  ${dry}⬆️  ${shown}`);
+    ctx.updated++;
+  } else if (ctx.prev[rel] === ctx.next[rel]) {
+    // Lo editaste tú y el kit NO ha cambiado este archivo: no hay versión nueva que ofrecerte.
+    ctx.userOwned++;
+  } else {
+    if (!FLAGS.dryRun) fs.writeFileSync(`${d}.kit-new`, srcBuf);
+    console.log(`  ${dry}⚠️  ${shown} — lo tuyo se conserva, la versión nueva queda en ${path.basename(d)}.kit-new`);
+    ctx.conflicts.push(shown);
+  }
+}
+
+// ---------- overlays del stack como reglas de Claude Code ----------
+// Antes iban dentro del bloque gestionado de CLAUDE.md, que se regenera entero en cada
+// ejecución: cualquier edición se perdía, y en un monorepo solo cabía UN stack para todo el
+// repo. Ahora son archivos de .claude/rules/kit/ con manifiesto como el resto de la capa:
+//  - sin `paths` se cargan siempre (lo mismo que antes, proyecto de un solo stack);
+//  - con `paths` (monorepo) Claude Code los carga solo al trabajar en esa carpeta, así cada
+//    paquete recibe las reglas de SU stack y no las de los demás.
+const RULES_DIR = "rules/kit";
+const globDir = (d) => `${d.replace(/[[\]{}*?]/g, "\\$&").replace(/"/g, '\\"')}/**`;
+function stackRules(stacks) {
+  const files = new Map();
+  const add = (rel, source, label, dirs) => {
+    const body = readMaybe(source);
+    if (!body) return; // p. ej. blockchain no tiene _common
+    const f = files.get(rel) || { label, body, always: false, paths: new Set() };
+    if (dirs === null) f.always = true;
+    else dirs.forEach((d) => f.paths.add(globDir(d)));
+    files.set(rel, f);
+  };
+  for (const { id, dirs } of stacks) {
+    const [cat, st] = id.split("/");
+    add(`${RULES_DIR}/${cat}.md`, path.join(KIT, "stacks", cat, "_common", ".claude", "CLAUDE.md"), `${cat} (común)`, dirs);
+    add(`${RULES_DIR}/${cat}-${st}.md`, path.join(KIT, "stacks", cat, st, ".claude", "CLAUDE.md"), id, dirs);
+  }
+  return [...files].map(([rel, f]) => {
+    const fm = f.always ? "" : `---\npaths:\n${[...f.paths].map((p) => `  - "${p}"`).join("\n")}\n---\n`;
+    const aviso = `<!-- dev-starter-kit · overlay ${f.label}. Lo genera el instalador; si lo editas, --update respeta tus cambios. -->\n`;
+    return { rel, buf: Buffer.from(`${fm}${aviso}${f.body}\n`) };
+  });
 }
 
 // Fusiona el settings.json del kit con el tuyo sin perder nada:
@@ -363,18 +423,43 @@ function applyLayer(src, dest, ctx, base) {
 //  - permisos: unión sin duplicados.
 //  - env: tus valores ganan.  - statusLine: si apunta a otra cosa, se respeta.
 //  - cualquier otra clave que hayas añadido se conserva tal cual.
+// Única excepción: lo que apunta a Ruflo (claude-flow) se retira. El kit lo instalaba (permisos,
+// env, y el `claude-flow init` que traía sus propios hooks) y ya no lo integra; dejarlo haría que
+// cada sesión siguiera llamando a un runtime que nadie mantiene. Lo retirado se informa.
 const isKitHook = (g) =>
   Array.isArray(g && g.hooks) && g.hooks.length > 0 && g.hooks.every((h) => /hook-handler\.cjs|auto-memory-hook\.mjs/.test((h && h.command) || ""));
+const RUFLO = /claude[-_]?flow|ruflo|ruv-swarm|flow-nexus/i;
+const isRuflo = (v) => RUFLO.test(typeof v === "string" ? v : JSON.stringify(v));
 
-function mergeSettings(kitPath, destPath) {
+function mergeSettings(kitPath, destPath, retired = []) {
   const kit = readJSON(kitPath) || {};
   const cur = readJSON(destPath) || {};
   const out = { ...cur };
   if (kit.$schema) out.$schema = kit.$schema;
+  for (const k of Object.keys(out)) {
+    if (isRuflo(k)) {
+      delete out[k];
+      retired.push(`clave "${k}"`);
+    } else if (Array.isArray(out[k]) && !["hooks", "permissions"].includes(k)) {
+      // p. ej. enabledMcpjsonServers: ["claude-flow", "ruv-swarm", "github"]
+      const limpio = out[k].filter((v) => !isRuflo(v));
+      if (limpio.length !== out[k].length) {
+        retired.push(`${k}: ${out[k].filter(isRuflo).join(", ")}`);
+        out[k] = limpio;
+      }
+    }
+  }
 
   const hooks = { ...(cur.hooks || {}) };
   for (const ev of new Set([...Object.keys(kit.hooks || {}), ...Object.keys(cur.hooks || {})])) {
-    const tuyos = (cur.hooks[ev] || []).filter((g) => !isKitHook(g));
+    const tuyos = (cur.hooks?.[ev] || []).filter((g) => {
+      if (isKitHook(g)) return false;
+      if (isRuflo(g)) {
+        retired.push(`hook ${ev}`);
+        return false;
+      }
+      return true;
+    });
     const merged = [...(kit.hooks?.[ev] || []), ...tuyos];
     if (merged.length) hooks[ev] = merged;
     else delete hooks[ev];
@@ -386,26 +471,78 @@ function mergeSettings(kitPath, destPath) {
     const a = kit.permissions?.[k];
     const b = cur.permissions?.[k];
     // allow/deny/ask son listas (se unen); defaultMode y similares son escalares (gana el tuyo).
-    if (Array.isArray(a) || Array.isArray(b)) perms[k] = [...new Set([...(a || []), ...(b || [])])];
-    else perms[k] = b !== undefined ? b : a;
+    if (Array.isArray(a) || Array.isArray(b)) {
+      perms[k] = [...new Set([...(a || []), ...(b || [])])].filter((p) => {
+        if (!isRuflo(p)) return true;
+        retired.push(`permiso ${p}`);
+        return false;
+      });
+    } else perms[k] = b !== undefined ? b : a;
   }
   out.permissions = perms;
 
-  out.env = { ...(kit.env || {}), ...(cur.env || {}) };
+  const env = { ...(kit.env || {}), ...(cur.env || {}) };
+  for (const k of Object.keys(env)) {
+    if (isRuflo(k)) {
+      delete env[k];
+      retired.push(`env ${k}`);
+    }
+  }
+  if (Object.keys(env).length) out.env = env;
+  else delete out.env;
   const propia = cur.statusLine && !/statusline\.cjs/.test(JSON.stringify(cur.statusLine));
   if (!propia && kit.statusLine) out.statusLine = kit.statusLine;
   return out;
+}
+
+// Archivos que el kit instaló y ya no distribuye (p. ej. los helpers de la memoria propia, que
+// sustituye la memoria nativa de Claude Code). Con --update se borran SOLO si siguen idénticos a
+// como los dejó el kit; si los editaste, se conservan y se avisa. Sin --update no se tocan, pero
+// se siguen recordando en el manifiesto para poder retirarlos en la próxima actualización.
+// Las instalaciones anteriores a 2.1 no tienen manifiesto: sus helpers retirados solo se avisan.
+const RETIRED_WITHOUT_MANIFEST = [
+  "helpers/memory.cjs", "helpers/session.cjs", "helpers/auto-memory-hook.mjs", "helpers/router.cjs", "helpers/intelligence.cjs",
+];
+function retireFiles(ctx, claudeDir) {
+  const remembered = {};
+  const dry = FLAGS.dryRun ? "(dry-run) " : "";
+  const candidates = { ...ctx.prev };
+  for (const rel of RETIRED_WITHOUT_MANIFEST) if (!(rel in candidates)) candidates[rel] = null;
+  for (const [rel, h] of Object.entries(candidates)) {
+    if (ctx.next[rel]) continue;
+    const p = path.join(claudeDir, rel);
+    if (!fs.existsSync(p)) continue;
+    const shown = path.relative(CWD, p);
+    if (FLAGS.update && h && hash(fs.readFileSync(p)) === h) {
+      if (!FLAGS.dryRun) fs.rmSync(p);
+      console.log(`  ${dry}🗑️  ${shown} (el kit ya no lo usa)`);
+      ctx.retired++;
+      continue;
+    }
+    if (h) remembered[rel] = h;
+    if (FLAGS.update) {
+      console.log(`  ⚠️  ${shown} ya no es parte del kit, pero ${h ? "lo editaste" : "no hay manifiesto para saber si lo editaste"}: se conserva. Bórralo si no lo usas.`);
+      ctx.retiredKept++;
+    }
+  }
+  return remembered;
 }
 
 function reportLayer(ctx) {
   const l = [];
   if (ctx.added) l.push(`${ctx.added} nuevos`);
   if (ctx.updated) l.push(`${ctx.updated} actualizados`);
+  if (ctx.retired) l.push(`${ctx.retired} retirados`);
   if (ctx.same) l.push(`${ctx.same} ya al día`);
   if (ctx.kept) l.push(`${ctx.kept} conservados (usa --update para actualizarlos)`);
   if (ctx.userOwned) l.push(`${ctx.userOwned} tuyos respetados (los editaste y el kit no los cambió)`);
   if (ctx.merged) l.push("settings.json fusionado");
   if (l.length) console.log(`  📋 ${l.join(" · ")}`);
+  if (ctx.retiredSettings.length) {
+    const dry = FLAGS.dryRun ? "(dry-run) " : "";
+    console.log(`\n  ${dry}🧹 Retirado de settings.json por apuntar a Ruflo (claude-flow): ${[...new Set(ctx.retiredSettings)].join(" · ")}`);
+    if (!FLAGS.dryRun) console.log("     Si lo necesitabas, está en el backup .claude.backup.* de esta ejecución.");
+  }
   if (ctx.conflicts.length) {
     console.log(`\n  ⚠️  ${ctx.conflicts.length} archivo(s) con cambios que no instaló el kit: se conservan intactos.`);
     console.log("     La versión nueva quedó al lado como *.kit-new. Compara y quédate con lo que quieras:");
@@ -417,12 +554,64 @@ function reportLayer(ctx) {
   }
 }
 
-function mcpHasFlow() {
-  const m = readJSON(path.join(CWD, ".mcp.json"));
-  return !!(m && m.mcpServers && Object.keys(m.mcpServers).some((k) => /flow/i.test(k)));
+// Ruflo (antes claude-flow) dejaba runtime, servidores MCP y decenas de archivos propios en el
+// proyecto. El kit ya no lo integra, pero no borra nada que no instaló él mismo: lo encuentra,
+// lo enumera y dice cómo quitarlo. Solo lectura. `kitFiles` son las rutas (relativas a .claude/)
+// que gestiona el kit: esas nunca cuentan como restos.
+function rufloLeftovers(kitFiles = {}) {
+  const found = [];
+  const mcp = readJSON(path.join(CWD, ".mcp.json"));
+  for (const [name, def] of Object.entries((mcp && mcp.mcpServers) || {})) {
+    if (isRuflo(name) || isRuflo(def)) found.push(`.mcp.json: servidor "${name}" → quítalo de mcpServers`);
+  }
+  for (const d of [".claude-flow", ".swarm", ".hive-mind"]) {
+    if (fs.existsSync(path.join(CWD, d))) found.push(`${d}/ → rm -rf ${d}`);
+  }
+  if (fileHas(path.join(CWD, ".claude", "settings.json"), RUFLO)) {
+    found.push(
+      FLAGS.update && !FLAGS.dryRun
+        ? ".claude/settings.json: sigue mencionando Ruflo en algo que el kit no gestiona → revísalo a mano"
+        : ".claude/settings.json: hooks/permisos de Ruflo → se retiran con --update"
+    );
+  }
+  const enClaude = [];
+  const queue = [path.join(CWD, ".claude")];
+  for (let visited = 0; queue.length && visited < 2000; visited++) {
+    const dir = queue.shift();
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_) {
+      continue;
+    }
+    for (const e of entries) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        // La memoria (de agente o la antigua) es contenido, no configuración: no cuenta como resto.
+        if (!["memory", "agent-memory", "agent-memory-local"].includes(e.name)) queue.push(p);
+      } else if (
+        e.name !== "settings.json" &&
+        !kitFiles[path.relative(path.join(CWD, ".claude"), p).split(path.sep).join("/")] &&
+        /\.(md|json|cjs|mjs|js|sh)$/.test(e.name) &&
+        fileHas(p, RUFLO)
+      ) {
+        enClaude.push(path.relative(CWD, p));
+      }
+    }
+  }
+  if (enClaude.length) {
+    found.push(`.claude/: ${plural(enClaude.length, "archivo menciona", "archivos mencionan")} Ruflo/claude-flow (p. ej. ${enClaude.slice(0, 3).join(", ")})`);
+  }
+  const root = readMaybe(path.join(CWD, "CLAUDE.md"));
+  const fuera = root.replace(new RegExp(`${esc(MB)}[\\s\\S]*?${esc(ME)}`), "");
+  if (RUFLO.test(fuera)) found.push("CLAUDE.md: hay instrucciones de Ruflo fuera del bloque del kit → bórralas a mano");
+  return found;
 }
 
-const GITIGNORE = [".claude/memory/", ".claude-flow/", ".swarm/", ".claude.backup.*", ".env", ".env.*"];
+// La memoria de agente con scope `project` (.claude/agent-memory/) se versiona a propósito: es
+// conocimiento del equipo. La `local` y CLAUDE.local.md son personales. .claude/memory/ es de la
+// memoria propia que tuvo el kit hasta la 2.x: se sigue ignorando para no versionar restos.
+const GITIGNORE = [".claude/memory/", ".claude/agent-memory-local/", "CLAUDE.local.md", ".claude.backup.*", ".env", ".env.*"];
 // Los archivos de ejemplo de env van versionados (la baseline los exige), pero ".env.*" los
 // captura. Git aplica la última regla que casa, así que las negaciones van SIEMPRE después.
 const GITIGNORE_KEEP = ["!.env.example", "!.env.sample", "!.env.template"];
@@ -480,20 +669,17 @@ async function scaffoldProject() {
   return false;
 }
 
-function composeClaudeMd(stackId, hasProject) {
-  const [cat, st] = stackId.split("/");
-  const common = readMaybe(path.join(KIT, "stacks", cat, "_common", ".claude", "CLAUDE.md"));
-  const specific = readMaybe(path.join(KIT, "stacks", cat, st, ".claude", "CLAUDE.md"));
+function composeClaudeMd(hasProject) {
   const imports = [];
   if (hasProject) imports.push("@CLAUDE.project.md");
   imports.push("@.claude/CLAUDE.base.md");
-  const overlay = [...imports, common, specific].filter(Boolean).join("\n\n");
-  const block = `${MB}\n${overlay}\n${ME}\n`;
+  imports.push("<!-- Reglas del stack: .claude/rules/kit/ (Claude Code las carga solo; en monorepo, por carpeta). -->");
+  const block = `${MB}\n${imports.join("\n")}\n${ME}\n`;
   const root = path.join(CWD, "CLAUDE.md");
   const dry = FLAGS.dryRun ? "(dry-run) " : "";
   if (!fs.existsSync(root)) {
     if (!FLAGS.dryRun) fs.writeFileSync(root, block);
-    console.log(`  ${dry}➕ ./CLAUDE.md (base + común + stack)`);
+    console.log(`  ${dry}➕ ./CLAUDE.md (proyecto + baseline; el stack va en .claude/rules/kit/)`);
   } else {
     let cur = fs.readFileSync(root, "utf8");
     const re = new RegExp(`${esc(MB)}[\\s\\S]*?${esc(ME)}\\n?`);
@@ -505,15 +691,16 @@ function composeClaudeMd(stackId, hasProject) {
 
 // ---------- manifiesto ----------
 const manifest = readJSON(path.join(KIT, "components.json")) || {};
-function cctFor(stackId) {
-  const [cat] = stackId.split("/");
+function cctFor(stacks) {
   const agents = [];
   const skills = [];
   for (const a of manifest.shared?.agents || []) agents.push(a.id);
   for (const s of manifest.shared?.skills || []) skills.push(s.id);
-  const sc = manifest.stacks?.[cat] || {};
-  for (const a of sc.agents || []) if (a.rec === "integrar") agents.push(a.id);
-  for (const s of sc.skills || []) if (s.rec === "integrar") skills.push(s.id);
+  for (const cat of new Set(stacks.map((st) => st.id.split("/")[0]))) {
+    const sc = manifest.stacks?.[cat] || {};
+    for (const a of sc.agents || []) if (a.rec === "integrar") agents.push(a.id);
+    for (const s of sc.skills || []) if (s.rec === "integrar") skills.push(s.id);
+  }
   return { agents: [...new Set(agents)], skills: [...new Set(skills)] };
 }
 
@@ -689,7 +876,9 @@ function envVars(file) {
     .filter(Boolean);
 }
 const plural = (n, sing, pl) => `${n} ${n === 1 ? sing : pl}`;
-function summarizeProject(stackId) {
+function summarizeProject(stacks) {
+  const stackId = stacks[0].id;
+  const monorepo = stacks.length > 1;
   const pkg = readJSON(path.join(CWD, "package.json")) || {};
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
   const dep = (n) => (deps[n] ? String(deps[n]).replace(/^[\^~>=<\s]+/, "") : null);
@@ -704,9 +893,10 @@ function summarizeProject(stackId) {
     lang.push(/"strict"\s*:\s*true/.test(readMaybe(path.join(CWD, "tsconfig.json"))) ? "TypeScript (strict)" : "TypeScript");
   }
   if (pkg.engines?.node) lang.push(`Node ${pkg.engines.node}`);
-  add("Stack", [stackId, ...lang].join(" · "));
+  add("Stack", [describeStacks(stacks), ...lang].join(" · "));
 
-  const fw = FRAMEWORK_DEP[stackId] && dep(FRAMEWORK_DEP[stackId]);
+  // En monorepo el framework vive en cada paquete, no en el package.json de la raíz.
+  const fw = !monorepo && FRAMEWORK_DEP[stackId] && dep(FRAMEWORK_DEP[stackId]);
   add("Framework", fw ? `${FRAMEWORK_DEP[stackId]} ${fw}` : null);
 
   const pm = packageManager();
@@ -722,7 +912,8 @@ function summarizeProject(stackId) {
   const engines = ENGINES.filter(([, re]) => re.test(haystack)).map(([n]) => n);
   add("Datos", [...data, ...engines].join(" · "));
 
-  const code = walkCode(CODE_EXT[stackId] || [".ts", ".tsx", ".js", ".py", ".php", ".java", ".cs", ".dart", ".sol"]);
+  const exts = [...new Set(stacks.flatMap((st) => CODE_EXT[st.id] || []))];
+  const code = walkCode(exts.length ? exts : [".ts", ".tsx", ".js", ".py", ".php", ".java", ".cs", ".dart", ".sol"]);
   add("Código", code.files ? `${plural(code.files, "archivo", "archivos")}${code.truncated ? "+" : ""} · ~${code.lines.toLocaleString("es")} líneas` : null);
 
 
@@ -801,7 +992,7 @@ function summarizeProject(stackId) {
   const width = Math.max(...rows.map(([l]) => l.length));
   for (const [label, value] of rows) console.log(`   ${label.padEnd(width)}  ${value}`);
   if (rows.some(([, v]) => v.includes("⚠️"))) console.log("\n   ⚠️ = hueco frente a la baseline del kit. Revísalo antes de dar el proyecto por listo.");
-  console.log("   Rellena CLAUDE.project.md con lo que esto no puede inferir: dominio, decisiones y límites.");
+  console.log("   /project-context rellena CLAUDE.project.md con esto y te pregunta lo que no se puede inferir: dominio, decisiones y límites.");
 }
 
 // ---------- main ----------
@@ -811,37 +1002,47 @@ async function main() {
   console.log(`║   Dev Starter Kit v${VERSION} — instalador      `.slice(0, 45) + "║");
   console.log("╚════════════════════════════════════════════╝");
 
-  const detectado = FLAGS.stack ? null : detectStack();
-  let stackId = FLAGS.stack || (detectado && detectado.id);
-  if (stackId && !STACKS[stackId]) {
-    console.log(`⚠️  Stack "${stackId}" no reconocido.`);
-    stackId = null;
-  }
-  if (stackId) {
-    const donde = detectado && detectado.dir ? ` (por ${detectado.dir}/, no por la raíz)` : "";
-    console.log(`\n✅ Stack detectado: ${stackId}${donde}`);
-    if (detectado && detectado.dir) {
-      console.log(`   El kit se instala aquí, en ${path.basename(CWD)}/, para que el CLAUDE.md cubra todo el repo.`);
+  let stacks = null;
+  if (FLAGS.stackArgs.length) {
+    const r = parseStacks(FLAGS.stackArgs);
+    if (r.error) console.log(`⚠️  ${r.error}.`);
+    else {
+      stacks = r.stacks;
+      console.log(`\n✅ Stack indicado: ${describeStacks(stacks)}`);
     }
-    if (!(await confirm("¿Es correcto?", true))) stackId = null;
+  } else {
+    const found = detectStacks();
+    const ids = [...new Set(found.map((f) => f.id))];
+    if (ids.length === 1) {
+      // Un solo stack (aunque esté en una o varias subcarpetas): su overlay se carga siempre.
+      const donde = found[0].dir ? ` (por ${found.map((f) => `${f.dir}/`).join(", ")}, no por la raíz)` : "";
+      console.log(`\n✅ Stack detectado: ${ids[0]}${donde}`);
+      if (found[0].dir) console.log(`   El kit se instala aquí, en ${path.basename(CWD)}/, para que el CLAUDE.md cubra todo el repo.`);
+      stacks = [{ id: ids[0], dirs: null }];
+    } else if (ids.length > 1) {
+      stacks = ids.map((id) => ({ id, dirs: found.filter((f) => f.id === id).map((f) => f.dir) }));
+      console.log(`\n✅ Monorepo: ${ids.length} stacks detectados, cada uno con sus reglas solo en su carpeta:`);
+      for (const st of stacks) console.log(`   ${st.id.padEnd(22)} → ${st.dirs.map((d) => `${d}/`).join(", ")}`);
+    }
+    if (stacks && !(await confirm("¿Es correcto?", true))) stacks = null;
   }
-  if (!stackId) {
-    if (!FLAGS.stack) console.log(`\n🔍 ${detectionHint()}`);
+  if (!stacks) {
+    if (!FLAGS.stackArgs.length) console.log(`\n🔍 ${detectionHint()}`);
     console.log("\nStacks disponibles:\n  " + Object.keys(STACKS).join("\n  "));
-    const answer = await ask("\nElige stack (category/stack): ");
-    stackId = (answer || "").trim();
-    if (!STACKS[stackId]) {
+    const answer = await ask("\nElige stack (category/stack; en monorepo, category/stack:carpeta separados por coma): ");
+    const r = parseStacks((answer || "").split(",").map((x) => x.trim()).filter(Boolean));
+    if (answer === null || r.error || !r.stacks.length) {
       console.error(
         answer === null
-          ? "\n❌ No se pudo detectar el stack y no hay entrada interactiva disponible.\n   Relanza indicándolo: node install.js --stack <category/stack>"
-          : `\n❌ Stack inválido: "${stackId}"`
+          ? "\n❌ No se pudo detectar el stack y no hay entrada interactiva disponible.\n   Relanza indicándolo: node install.js --stack <category/stack>[:carpeta][,…]"
+          : `\n❌ ${r.error || "No elegiste ningún stack"}`
       );
       closeInput();
       process.exitCode = 1; // no salgas en verde a medias
       return;
     }
+    stacks = r.stacks;
   }
-
   // backup
   const claudeDir = path.join(CWD, ".claude");
   if (fs.existsSync(claudeDir) && !FLAGS.dryRun) {
@@ -850,22 +1051,11 @@ async function main() {
     console.log(`\n📦 Backup: ${bk}`);
   }
 
-  // 1) claude-flow PRIMERO (si se opta): es dueño del runtime (settings.json, helpers, .mcp.json).
-  //    Nuestra capa se aplica encima con skip-existing y NO lo pisa.
-  let flowInstalled = mcpHasFlow();
-  if (!FLAGS.noFlow && manifest.claudeFlow?.enabled && !flowInstalled) {
-    console.log("\n🐝 Enjambre (claude-flow): instala el runtime real (MCP + helpers + hooks de coordinación).");
-    if (await confirm("¿Ejecutar claude-flow init? (descarga ~100 archivos)", FLAGS.all)) {
-      if (run(manifest.claudeFlow.initCommand)) flowInstalled = true;
-    } else {
-      console.log("  → Omitido. La capa base funciona sola (modo coordinación nativa).");
-    }
-  } else if (flowInstalled) {
-    console.log("\n🐝 claude-flow ya presente (.mcp.json). Aplico nuestra capa encima sin pisarlo.");
+  if (FLAGS.noFlowLegacy) {
+    console.log("\nℹ️  --no-flow ya no hace nada: el kit dejó de integrar Ruflo (claude-flow). Puedes quitarlo de tus scripts.");
   }
 
-  // 2) capa base (encima de claude-flow si está). En modo flow se omiten nuestros agentes core
-  //    (los cubre claude-flow agents/core/*) para no duplicar nombres de agente.
+  // 1) capa base
   console.log("\n📄 Aplicando capa base (shared/.claude)...");
   const manifestPath = path.join(claudeDir, MANIFEST_FILE);
   const prevManifest = readJSON(manifestPath);
@@ -878,40 +1068,41 @@ async function main() {
     );
   }
   if (!FLAGS.dryRun) fs.mkdirSync(claudeDir, { recursive: true });
-  // Solo se omiten los 5 agentes core cuyo NOMBRE colisiona con claude-flow (agents/core/*).
-  // El resto de agentes top-level (security-engineer, api-security-audit, ...) se conservan;
-  // si claude-flow ya trae uno con el mismo path, applyLayer lo respeta por skip-existing.
-  const FLOW_CORE_COLISION = /^agents\/(coder|planner|reviewer|tester|researcher)\.md$/;
   const layer = {
     prev: (prevManifest && prevManifest.files) || {},
     next: {},
-    added: 0, updated: 0, same: 0, kept: 0, userOwned: 0, merged: false, conflicts: [],
-    skip: (rel) => {
-      if (flowInstalled && FLOW_CORE_COLISION.test(rel)) return true;
-      // Si claude-flow es dueño del runtime, su settings.json manda: ni se pisa ni se fusiona.
-      // (Si aún no existe, sí lo escribimos: el proyecto se quedaría sin hooks ni permisos.)
-      if (flowInstalled && rel === "settings.json" && fs.existsSync(path.join(claudeDir, "settings.json"))) return true;
-      return false;
-    },
+    added: 0, updated: 0, same: 0, kept: 0, userOwned: 0, merged: false, conflicts: [], retiredSettings: [],
+    retired: 0, retiredKept: 0,
   };
   applyLayer(path.join(KIT, "shared", ".claude"), claudeDir, layer);
+  // Reglas del stack: mismo manifiesto, así un cambio de stack retira la regla vieja si está intacta.
+  for (const r of stackRules(stacks)) applyFile(r.rel, r.buf, path.join(claudeDir, r.rel), layer);
+  const remembered = retireFiles(layer, claudeDir);
   reportLayer(layer);
   if (!FLAGS.dryRun) {
-    fs.writeFileSync(manifestPath, JSON.stringify({ version: VERSION, files: layer.next }, null, 2) + "\n");
+    fs.writeFileSync(manifestPath, JSON.stringify({ version: VERSION, files: { ...remembered, ...layer.next } }, null, 2) + "\n");
   }
 
-  // 3) Definición del proyecto + CLAUDE.md raíz (añade/actualiza nuestro bloque; respeta el de claude-flow y anexa)
+  // 2) Definición del proyecto + CLAUDE.md raíz (añade/actualiza nuestro bloque; respeta lo demás)
   console.log("\n📝 Definición del proyecto y CLAUDE.md...");
   const hasProject = await scaffoldProject();
-  composeClaudeMd(stackId, hasProject);
+  composeClaudeMd(hasProject);
   ensureGitignore();
   await scaffoldEnvExample();
 
+  // 3) restos de Ruflo (solo lectura)
+  const ruflo = rufloLeftovers(layer.next);
+  if (ruflo.length) {
+    console.log("\n🧹 Restos de Ruflo (claude-flow) en este proyecto. El kit ya no lo integra:");
+    ruflo.forEach((r) => console.log(`   • ${r}`));
+    console.log("   No borro nada que no instalé yo: revísalo y elimínalo cuando confirmes que no lo usas.");
+  }
+
   // 4) externos (claude-code-templates: agentes + skills)
   if (!FLAGS.noExternal) {
-    const { agents, skills } = cctFor(stackId);
+    const { agents, skills } = cctFor(stacks);
     if (agents.length || skills.length) {
-      console.log(`\n🧩 Componentes externos curados para ${stackId}:`);
+      console.log(`\n🧩 Componentes externos curados para ${stacks.map((x) => x.id).join(", ")}:`);
       agents.forEach((a) => console.log(`   agent  ${a}`));
       skills.forEach((s) => console.log(`   skill  ${s}`));
       if (await confirm("¿Instalarlos vía claude-code-templates? (requiere red)", FLAGS.all)) {
@@ -923,15 +1114,19 @@ async function main() {
       }
     }
 
-    // 5) deps npm + tools por stack
-    const extra = manifest.byStackId?.[stackId];
-    if (extra?.npm?.length) {
-      console.log(`\n📦 Dependencias npm sugeridas para ${stackId}: ${extra.npm.join(", ")}`);
-      if (fs.existsSync(path.join(CWD, "package.json")) && (await confirm("¿Instalarlas ahora?", FLAGS.all))) {
-        run(`npm install ${extra.npm.join(" ")}`);
+    // 5) deps npm + tools por stack. En monorepo no se instalan en la raíz: van en el paquete,
+    //    con el gestor de workspaces del repo, y eso lo decide la persona.
+    for (const st of stacks) {
+      const npmDeps = manifest.byStackId?.[st.id]?.npm || [];
+      if (!npmDeps.length) continue;
+      console.log(`\n📦 Dependencias npm sugeridas para ${st.id}: ${npmDeps.join(", ")}`);
+      if (st.dirs) {
+        console.log(`   Instálalas dentro de ${st.dirs.map((d) => `${d}/`).join(", ")} con el gestor de workspaces del repo.`);
+      } else if (fs.existsSync(path.join(CWD, "package.json")) && (await confirm("¿Instalarlas ahora?", FLAGS.all))) {
+        run(`npm install ${npmDeps.join(" ")}`);
       }
     }
-    if (extra?.tools?.includes("react-doctor")) {
+    if (stacks.some((st) => manifest.byStackId?.[st.id]?.tools?.includes("react-doctor"))) {
       console.log("\n🩺 react-doctor disponible: `npx react-doctor@latest .` para auditar (state/perf/a11y). No se cablea como hook bloqueante.");
     }
 
@@ -940,31 +1135,45 @@ async function main() {
   }
 
   // 6) plugins de Claude Code (se añaden DENTRO de Claude Code, no por shell): shared + por-stack
-  const [pcat] = stackId.split("/");
   const marketplaces = [];
   const installs = [];
   const seenMk = new Set();
   const pushMk = (id) => { if (id && !seenMk.has(id)) { seenMk.add(id); marketplaces.push(id); } };
   (manifest.shared?.pluginMarketplaces || []).forEach((m) => pushMk(m.id));
-  (manifest.shared?.pluginsOptional || []).forEach((p) => installs.push(p.id));
-  for (const p of manifest.stacks?.[pcat]?.pluginsOptional || []) {
-    if (p.marketplace) pushMk(p.marketplace);
-    installs.push(p.id);
+  (manifest.shared?.pluginsOptional || []).forEach((p) => installs.push(p));
+  for (const cat of new Set(stacks.map((st) => st.id.split("/")[0]))) {
+    for (const p of manifest.stacks?.[cat]?.pluginsOptional || []) {
+      if (p.marketplace) pushMk(p.marketplace);
+      if (!installs.some((x) => x.id === p.id)) installs.push(p);
+    }
   }
-  if (marketplaces.length || installs.length) {
+  // Code intelligence (LSP) de cada stack: el plugin es solo el adaptador; el binario del
+  // language server lo instala la persona (el kit no instala nada en global).
+  const lsps = new Map();
+  for (const st of stacks) {
+    const l = manifest.byStackId?.[st.id]?.lsp;
+    if (l) lsps.set(l.plugin, { ...l, stacks: [...(lsps.get(l.plugin)?.stacks || []), st.id] });
+  }
+  if (marketplaces.length || installs.length || lsps.size) {
     console.log("\n🔌 Plugins de Claude Code (ejecuta DENTRO de Claude Code):");
     marketplaces.forEach((id) => console.log(`   /plugin marketplace add ${id}`));
-    installs.forEach((id) => console.log(`   /plugin install ${id}`));
+    // `short` resume la condición que hay que conocer antes de instalarlo (costo, datos que envía…).
+    installs.forEach((p) => console.log(`   /plugin install ${p.id}${p.short ? `   # ${p.short}` : ""}`));
+    for (const l of lsps.values()) {
+      console.log(`\n🧠 Code intelligence para ${l.stacks.join(", ")}: go-to-definition, referencias y errores de tipos en vivo.`);
+      console.log(`   /plugin install ${l.plugin}`);
+      console.log(`   Requiere el language server instalado por ti: ${l.binary}`);
+    }
   }
 
   console.log("\n✅ Listo.");
   console.log("   • Capa base coherente aplicada en .claude/ (agentes, skills, helpers, settings, comandos)");
-  console.log("   • CLAUDE.md compuesto (project + base + común + stack) en la raíz");
-  console.log("   • Memoria por-proyecto en .claude/memory/ y .gitignore actualizado");
-  if (!flowInstalled) console.log("   • Sin claude-flow: coordinación nativa (ejecútalo luego con: " + (manifest.claudeFlow?.initCommand || "claude-flow init") + ")");
+  console.log(`   • CLAUDE.md compuesto (proyecto + baseline) y reglas del stack en .claude/rules/kit/: ${describeStacks(stacks)}`);
+  console.log("   • Memoria: la nativa de Claude Code + la de agente en .claude/agent-memory/ (versionada); .gitignore actualizado");
+  console.log("   • Siguiente paso: abre Claude Code y corre /project-context para rellenar CLAUDE.project.md");
 
   try {
-    summarizeProject(stackId);
+    summarizeProject(stacks);
   } catch (e) {
     console.error(`\n⚠️  No se pudo generar el resumen del proyecto: ${e.message}`); // nunca tumbes una instalación correcta
   }

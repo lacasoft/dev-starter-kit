@@ -1,12 +1,6 @@
 {
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Manifiesto de componentes externos curados. El instalador (install.js) los aplica por stack. Revisados uno a uno antes de integrar.",
-
-  "claudeFlow": {
-    "enabled": true,
-    "initCommand": "npx -y claude-flow@3.10.41 init --force",
-    "note": "Enjambre híbrido. Instala el runtime real (MCP + agentes + hooks de claude-flow). Opcional al aplicar."
-  },
 
   "cctCli": "npx -y claude-code-templates@1.28.16",
 
@@ -24,7 +18,9 @@
     ],
     "pluginsOptional": [
       { "id": "code-review@claude-plugins-official", "why": "review automatizado de PRs" },
-      { "id": "context7-plugin@context7-marketplace", "marketplace": "upstash/context7", "rec": "opcional", "why": "MCP remoto (https://mcp.context7.com/mcp) que inyecta docs versionadas de librerías. Sin API key obligatoria (free tier; la key gratis solo sube rate limits). No pisa el .mcp.json de claude-flow (servidor namespaced 'context7' dentro del plugin). Transversal a todos los stacks. Privacidad: solo viaja el nombre de librería + la pregunta, nunca metas secretos ni código propietario en la query." }
+      { "id": "security-guidance@claude-plugins-official", "rec": "opcional", "short": "revisión de seguridad automática en cada turno y commit; cuesta tokens (Opus)", "why": "Revisado (v2.0.14, Apache-2.0, Anthropic). Tres capas: avisos por patrones al editar, revisión del diff con un LLM al terminar cada turno y revisión agéntica en cada commit/push que sigue el flujo de datos entre archivos (IDOR, bypass de auth, SSRF entre archivos). Complementa a owasp-review (que es bajo demanda). Condiciones: 1) cada revisión es una llamada a Opus aparte de tu sesión (su README estima ~0.19 USD por revisión del Stop): para gastar menos, ENABLE_STOP_REVIEW=0 deja solo las de commit/push, o SECURITY_REVIEW_MODEL apunta a un modelo más barato; 2) en cada SessionStart instala claude-agent-sdk desde PyPI SIN versión fijada (pip install --upgrade, en un venv en ~/.claude/security), lo que choca con la regla de versión fijada de §6.1; 3) envía el diff y los archivos relacionados al mismo endpoint de modelo que usa Claude Code. Sus hooks viven en el plugin y no tocan nuestro settings.json. Reglas propias del proyecto: .claude/claude-security-guidance.md (versionado; sin secretos, va al prompt)." },
+      { "id": "claude-security@claude-plugins-official", "rec": "opcional", "short": "escaneo profundo bajo demanda (/claude-security) con hallazgos verificados y SARIF", "why": "Revisado (v0.12.0, Anthropic, licencia PROPIETARIA: se puede usar, no destilar). Escaneo multiagente bajo demanda del repo o de un diff, con threat model, verificadores independientes que intentan refutar cada hallazgo y salida en Markdown, JSONL y SARIF; puede proponer parches como archivos que tú aplicas. Es el complemento pesado de owasp-review: úsalo antes de un release grande o tras un cambio sensible (scan de cambios a effort high). Sin instalaciones en SessionStart; sus hooks solo muestran un banner, cuentan uso y sugieren escanear tras push/PR (CLAUDE_SECURITY_SCAN_TIP=off lo apaga). Requiere Python 3.9+. Escribe CLAUDE-SECURITY-<timestamp>/ en la raíz del repo, con su propio .gitignore. Consume muchos tokens: pide confirmar el costo antes de cada scan." },
+      { "id": "context7-plugin@context7-marketplace", "marketplace": "upstash/context7", "rec": "opcional", "why": "MCP remoto (https://mcp.context7.com/mcp) que inyecta docs versionadas de librerías. Sin API key obligatoria (free tier; la key gratis solo sube rate limits). No toca el .mcp.json del proyecto (servidor namespaced 'context7' dentro del plugin). Transversal a todos los stacks. Privacidad: solo viaja el nombre de librería + la pregunta, nunca metas secretos ni código propietario en la query." }
     ]
   },
 
@@ -71,8 +67,18 @@
   },
 
   "byStackId": {
-    "frontend/react": { "npm": ["motion"], "tools": ["react-doctor"] },
-    "mobile/react-native": { "npm": ["react-native-reanimated"], "tools": ["react-doctor"] }
+    "_lspNote": "Plugins oficiales de code intelligence (LSP) por stack: go-to-definition, referencias y diagnósticos de tipos en vivo. El plugin es solo el adaptador; el binario del language server lo instala la persona (el hook pre-bash deniega instalaciones globales hechas por el agente). Sin plugin oficial para Dart ni Solidity.",
+    "backend/nestjs": { "lsp": { "plugin": "typescript-lsp@claude-plugins-official", "binary": "typescript-language-server (npm i -g typescript-language-server typescript)" } },
+    "backend/express": { "lsp": { "plugin": "typescript-lsp@claude-plugins-official", "binary": "typescript-language-server (npm i -g typescript-language-server typescript)" } },
+    "backend/fastapi": { "lsp": { "plugin": "pyright-lsp@claude-plugins-official", "binary": "pyright-langserver (npm i -g pyright, o pipx install pyright)" } },
+    "backend/django": { "lsp": { "plugin": "pyright-lsp@claude-plugins-official", "binary": "pyright-langserver (npm i -g pyright, o pipx install pyright)" } },
+    "backend/php": { "lsp": { "plugin": "php-lsp@claude-plugins-official", "binary": "intelephense (npm i -g intelephense)" } },
+    "backend/spring": { "lsp": { "plugin": "jdtls-lsp@claude-plugins-official", "binary": "jdtls (Eclipse JDT.LS; brew install jdtls o instalación manual)" } },
+    "backend/dotnet": { "lsp": { "plugin": "csharp-lsp@claude-plugins-official", "binary": "csharp-ls (dotnet tool install --global csharp-ls)" } },
+    "frontend/angular": { "lsp": { "plugin": "typescript-lsp@claude-plugins-official", "binary": "typescript-language-server (npm i -g typescript-language-server typescript)" } },
+    "frontend/react": { "npm": ["motion"], "tools": ["react-doctor"], "lsp": { "plugin": "typescript-lsp@claude-plugins-official", "binary": "typescript-language-server (npm i -g typescript-language-server typescript)" } },
+    "frontend/nextjs": { "lsp": { "plugin": "typescript-lsp@claude-plugins-official", "binary": "typescript-language-server (npm i -g typescript-language-server typescript)" } },
+    "mobile/react-native": { "npm": ["react-native-reanimated"], "tools": ["react-doctor"], "lsp": { "plugin": "typescript-lsp@claude-plugins-official", "binary": "typescript-language-server (npm i -g typescript-language-server typescript)" } }
   },
 
   "externalSkillCatalogs": {
@@ -116,6 +122,7 @@
   },
 
   "discarded": {
+    "ruvnet/claude-flow (Ruflo)": "RETIRADO en la versión 3 (antes era el modo 'enjambre híbrido'). No es estándar: trae su propio runtime, servidores MCP (claude-flow, ruv-swarm, flow-nexus), decenas de archivos en .claude/ y hooks que se ejecutan en cada sesión, y su `init --force` es dueño del settings.json del proyecto. La coordinación nativa de Claude Code (tool Agent, worktrees, memoria de agente) cubre lo que usábamos. El instalador ya no lo ejecuta, retira sus entradas de settings.json en --update y avisa de los restos que encuentre, sin borrarlos.",
     "obra/superpowers (plugin completo)": "DESTILADO (ver distilled); NO instalar el plugin entero: su hook SessionStart inyecta un bloque grande en cada sesión y su registro ('your human partner', tono '<EXTREMELY_IMPORTANT>') choca con nuestro estilo sobrio en español; sus skills están acopladas por cross-refs internas. Destilamos los patrones, no los enlaces.",
     "Hainrixz/cyber-neo (skill completa)": "DESTILADO (ver distilled); NO instalar la skill entera: solapa con ship-gate, escribe el reporte en ~/Desktop y trae branding de comunidad. Aprovechamos su knowledge base (CWE/OWASP/secretos/CI-CD), no su orquestación ni references largos por lenguaje.",
     "Leonxlnx/taste-skill (imagegen/stitch/variantes)": "DESTILADA solo taste-skill/SKILL.md (ver distilled); descartadas imagegen-frontend-web/mobile, brandkit, image-to-code y stitch-skill (requieren ChatGPT Images/Google Stitch externos; generan imágenes, no código), taste-skill-v1 y gpt-tasteskill (variantes legacy/atadas a otro agente), y research/laziness (trata de truncación de output, no de diseño; mezcla estudios con afirmaciones sin cita).",
@@ -125,6 +132,8 @@
     "git/git-flow-manager": "Solo si el equipo usa Git Flow (no trunk-based). Dejar a criterio por proyecto.",
     "web-development/react-best-practices": "Duplica la skill vercel:react-best-practices ya disponible en el harness.",
     "cct-hooks": "lint-on-save / security-scanner / smart-formatting / tdd-gate: su instalador hace merge shallow por evento y PISA nuestros arrays Pre/PostToolUse. Su intención (format+lint+secret-scan) ya está replicada en .claude/helpers/hook-handler.cjs.",
+    "semgrep@claude-plugins-official (Semgrep Guardian)": "Revisado (v2.7.0). NO se recomienda por defecto: sus hooks corren en cada Write/Edit/Bash de TODOS los proyectos y envían cada archivo que escribe el agente (y su versión anterior), más lockfiles, a scanner.semgrep.ai; exige cuenta de Semgrep; ejecuta binarios precompilados que se autoactualizan en cada inicio de sesión (con manifiesto firmado, pero opacos para revisión); y el repo del plugin no trae licencia. Si tu organización ya usa Semgrep y acepta ese flujo de datos, es su decisión. La alternativa que propone el kit: semgrep CLI local o en CI (ver ci-cd y owasp-review).",
+    "serena@claude-plugins-official": "Revisado. Plugin comunitario cuyo .mcp.json arranca `uvx --from git+https://github.com/oraios/serena` SIN versión fijada: cada sesión ejecuta el último commit de GitHub, lo contrario de §6.1. Lo que aporta (navegación semántica por LSP) ya lo cubren los plugins LSP oficiales que el kit indica por stack, y su propio sistema de memorias del proyecto duplicaría la memoria nativa. Si se quisiera, habría que fijarlo a un tag a mano.",
     "framer-motion (como skill)": "Es dependencia npm de proyecto, no componente .claude. Se sugiere instalar en el proyecto, no en .claude."
   }
 }

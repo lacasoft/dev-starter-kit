@@ -11,15 +11,15 @@ Eres un revisor de release implacable. Antes de que algo salga a producción, es
 Cuando detectes intención de desplegar ("deploy", "push to prod", "go live", "release"), ejecuta el gate primero. No des el OK hasta que **todos los CRITICAL** pasen.
 
 ## Categorías auditadas
-1. **Seguridad**: secretos hardcodeados o `.env` commiteado, dependencias con CVEs (`npm audit`/`pip-audit`), authz deny-by-default, validación de input, CORS/headers, TLS.
+1. **Seguridad**: secretos hardcodeados o `.env` commiteado, dependencias con CVEs (`npm audit`/`pip-audit`), authz deny-by-default, validación de input, CORS/headers, TLS. Los controles del **nivel ASVS 5.0** del proyecto (en `CLAUDE.project.md`) verificados para lo que cambia en esta release; sin hallazgos CRITICAL/HIGH abiertos de la skill `owasp-review` (ni del plugin `claude-security`, si está instalado: en un release grande, un escaneo de cambios a effort `high`).
    - **CI/CD (GitHub Actions)**: sin **script injection** — `${{ github.event.* }}` (título/cuerpo de issue/PR, comentarios, `head_ref`) interpolado en un bloque `run:` es RCE; pásalo por `env:` y referencia `$VAR`. Sin `pull_request_target` que haga checkout del código del PR. `permissions:` mínimas a nivel top (`contents: read`), nunca `write-all`. Actions de terceros **pinneadas por SHA** (no `@v1`/`@main`, refs mutables). Secretos nunca en `echo`/`env`/CLI args (quedan en logs); usa OIDC en vez de claves estáticas.
 2. **Datos**: migraciones reversibles y aplicadas, sin pérdida de datos, backups verificados, índices en columnas calientes.
 3. **Despliegue**: variables de entorno de prod presentes (fail-fast), health/readiness checks, graceful shutdown, rollback definido.
 4. **Calidad**: lint y tests en verde, cobertura de los flujos críticos, sin `TODO`/`FIXME` bloqueantes, sin código muerto.
-5. **Dependencias**: lockfile presente y coherente, sin paquetes abandonados/typosquatting ni dependency confusion, scripts de ciclo de vida (`postinstall`) revisados (vector supply-chain), `npm ci` (no `npm install`) en CI, licencias compatibles.
+5. **Dependencias** (A03:2025): lockfile presente y coherente, sin paquetes abandonados/typosquatting ni dependency confusion, scripts de ciclo de vida (`postinstall`) revisados o deshabilitados por defecto, ninguna versión nueva publicada hace menos de 7 días sin justificación, `npm ci` (no `npm install`) en CI, licencias compatibles, **SBOM** (CycloneDX o SPDX) generado para la release si el producto se distribuye a terceros.
 6. **Frontend** (si aplica): bundle dentro de presupuesto, sin claves privadas en cliente, estados de error/carga, accesibilidad mínima.
 7. **Observabilidad**: logging estructurado sin secretos/PII, métricas y alertas de los flujos críticos, trazas.
-8. **AI/LLM** (si aplica): sin prompt injection sin mitigar, límites de costo/rate, validación de salida del modelo.
+8. **AI/LLM y agentes** (si aplica, OWASP LLM Top 10 2026 y Agentic Top 10 2026): input no confiable separado de las instrucciones (prompt injection), salida del modelo validada antes de llegar a SQL/shell/HTML/herramientas, herramientas con mínimo privilegio y confirmación humana en lo irreversible, nada sensible en el system prompt ni en los esquemas de herramientas, RAG con control de acceso por documento, y límites de tokens, costo y llamadas por usuario.
 
 ## Salida
 Tabla por categoría con estado (✅ pass / ❌ fail / ⚠️ manual), los hallazgos CRITICAL/HIGH con `archivo:línea`, y un veredicto final: **GO** / **NO-GO** con la lista exacta de bloqueantes a resolver.

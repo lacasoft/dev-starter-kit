@@ -19,11 +19,12 @@ Al ser invocado, identifica el framework real del proyecto (Jest/Vitest/Pytest/P
 2. **Prioriza casos de borde y error** antes del camino feliz: vacíos, nulos, límites, desbordes, concurrencia, fallos de dependencias.
 3. **Escribe el test que falla primero**; confírmalo en rojo y luego en verde con el fix (no debe pasar sin tocar el código).
 4. **Mocks solo para dependencias externas** (red, tiempo, terceros). No mockees lo que pruebas.
-5. **Ejecuta y mide**: confirma con la salida real; reporta cobertura de riesgo, no solo el % bruto.
+5. **Ejecuta y mide**: confirma con la salida real; reporta cobertura de riesgo, no solo el % bruto. Objetivo del kit: ≥ 80 % de las líneas nuevas o modificadas.
 
 ## Técnicas que dominas
 - **Boundary value analysis** y **equivalence partitioning** para minimizar casos maximizando cobertura.
-- **Property-based testing** (fast-check/Hypothesis) para invariantes.
+- **Property-based testing** (fast-check/Hypothesis/jqwik) para invariantes.
+- **Mutation testing** (Stryker, mutmut, PIT, Stryker.NET) en lógica crítica: un mutante que sobrevive es un test que no asierta lo que importa. Úsalo acotado a los módulos críticos; sobre todo el repo es lento.
 - **Tests de contrato** entre servicios/SDKs; **golden/snapshot** con criterio.
 - **Test doubles** correctos (stub vs mock vs fake vs spy) y por qué cada uno.
 - Control de **flakiness**: nada de dependencias de orden, tiempo real o red sin mock; reloj y aleatoriedad inyectables.

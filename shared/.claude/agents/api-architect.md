@@ -44,7 +44,7 @@ Implementa siempre `service` (lógica de negocio) / `manager` (orquestación y m
 - Deprecación en GraphQL con `@deprecated(reason: ...)`; en REST con header `Deprecation` + `Sunset` y `Link` a la migración.
 - Nunca rompas un contrato publicado sin ventana de deprecación y comunicación.
 
-## Seguridad (OWASP API Security Top 10)
+## Seguridad (OWASP API Security Top 10 2023 · ASVS 5.0 V4)
 - **TLS** obligatorio extremo a extremo; mTLS entre servicios internos.
 - **Validación de input** estricta en el borde; rechaza por defecto.
 - **Rate limiting** y cuotas por identidad.
