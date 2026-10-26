@@ -2,6 +2,8 @@
   PLANTILLA DE DEFINICIÓN DEL PROYECTO
   La forma rápida de rellenarla: abre Claude Code y corre /project-context. Lee el repo,
   confirma los comandos y te pregunta solo lo que no se puede deducir.
+  Si diseñaste el sistema con system-design-kit: /project-context <ruta>/design.md traslada
+  requisitos, escala, arquitectura y fallas, y crea los ADRs desde las decisiones.
   Rellena las secciones que apliquen y borra las que no. Esto es lo que da CONTEXTO real
   al agente (qué es el producto, su dominio, reglas y convenciones). Sin esto, el agente
   solo conoce las reglas genéricas. El root CLAUDE.md importa este archivo con @CLAUDE.project.md.

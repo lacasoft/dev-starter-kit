@@ -146,6 +146,29 @@ comandos de build/test/lint antes de documentarlos, rellena lo derivable y te pr
 tanda lo que no se puede deducir. Mientras siga siendo la plantilla, cada sesión arranca con un
 aviso que lo sugiere.
 
+### Desde un diseño (system-design-kit)
+
+Si diseñaste el sistema con [system-design-kit](https://github.com/lacasoft/system-design-kit),
+no reescribas nada: en el proyecto de código, pasa la ruta del diseño.
+
+```bash
+claude --add-dir ../acortador-urls      # para que pueda leer la carpeta del diseño
+> /project-context ../acortador-urls/design.md
+```
+
+| Del diseño | Al proyecto |
+| --- | --- |
+| Requisitos y fuera de alcance | *Visión del producto* (con "Fuera de alcance (v1)") |
+| Requisitos no funcionales y escala | *Atributos de calidad* con sus umbrales |
+| API y modelo de datos | *Modelo / dominio* y contratos en *Arquitectura* |
+| Arquitectura inicial y escenarios de falla | *Arquitectura* (con "Fallas previstas") y tests de regresión en *Testing* |
+| Decisiones clave y tradeoffs | **Un ADR por decisión** en `docs/adr/`, con la plantilla de la skill `adr` |
+| Supuestos sin confirmar | *Pendiente de confirmar* |
+
+Lo que el repo sí sabe (stack real, comandos, estructura) sigue saliendo del repo. El archivo
+anota de qué diseño salió y su fecha, así que si el diseño cambia, volver a correrlo actualiza
+solo lo que vino de ahí; un ADR aceptado no se edita, se reemplaza por otro.
+
 ## Memoria y contexto (nativos de Claude Code)
 
 | Qué | Dónde | Quién lo escribe | Versionado |
