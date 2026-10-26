@@ -59,6 +59,7 @@ La orquestación multiagente usa solo herramientas nativas (tool `Agent`, agente
 - **Protocolo por tarea**: (1) recuperar contexto (CLAUDE.project.md, ADRs, memoria) → (2) planificar →
   (3) ejecutar en paralelo lo independiente → (4) verificar → (5) guardar lo duradero donde corresponde (ver §3.1).
 - Tras lanzar trabajo en background o subagentes: **STOP**. No hagas polling; espera el resultado.
+- **Tareas largas con final verificable** (un plan, una migración, una tanda de tests rotos): ciclo con verificador determinista, tope de turnos y revisión independiente (skill `loop-task`), en una rama propia.
 
 ### 3.1 Memoria y contexto del proyecto
 

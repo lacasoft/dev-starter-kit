@@ -14,9 +14,9 @@ Configuración `.claude` unificada para backend, frontend, mobile y blockchain. 
 │   ├── CLAUDE.base.md          # baseline universal (comportamiento, agentes, memoria, seguridad, calidad)
 │   ├── settings.json           # hooks + permisos + statusLine
 │   ├── agents/                 # 14 agentes (5 core + 9 especialistas) — ver "Agentes incluidos"
-│   ├── skills/                 # 18 skills (flujo + contexto + ingeniería + seguridad) — ver "Skills incluidas"
+│   ├── skills/                 # 19 skills (flujo + contexto + ingeniería + seguridad) — ver "Skills incluidas"
 │   ├── commands/               # /swarm, /kit:status
-│   ├── helpers/                # hook-handler, statusline
+│   ├── helpers/                # hook-handler, loop, statusline
 │   └── templates/              # PROJECT.template.md (definición del proyecto)
 ├── stacks/                     # OVERLAYS: 13 stacks seleccionables + un `_common` por categoría
 │   ├── backend/{_common,nestjs,express,fastapi,django,php,spring,dotnet}
@@ -34,7 +34,7 @@ Dentro de **cualquier proyecto** (nuevo o heredado), sin clonar nada:
 ```bash
 npx -y github:lacasoft/dev-starter-kit              # interactivo
 npx -y github:lacasoft/dev-starter-kit --yes --all  # desatendido (todo)
-npx -y github:lacasoft/dev-starter-kit#v3.1.0       # fijar una versión (recomendado)
+npx -y github:lacasoft/dev-starter-kit#v3.2.0       # fijar una versión (recomendado)
 ```
 
 Toma siempre la última versión de `master` (o el tag indicado). Repo **público (MIT)**.
@@ -121,7 +121,7 @@ Además, el kit instala por stack agentes/skills externos curados (`frontend-dev
 
 ## Skills incluidas (capa base)
 
-**Flujo de trabajo**: `tdd` · `diagnose` · `grill-me` · `handoff` · `swarm-orchestration` · `verification` · `code-review-response` · `git-worktrees`
+**Flujo de trabajo**: `tdd` · `diagnose` · `grill-me` · `handoff` · `swarm-orchestration` · `verification` · `code-review-response` · `git-worktrees` · `loop-task`
 **Contexto y memoria**: `project-context` (rellena `CLAUDE.project.md` a partir del repo real) · `adr` (registro de decisiones en `docs/adr/`)
 **Ingeniería/entrega**: `ci-cd` · `performance-profiling` · `migration` · `monorepo` · `release` · `ship-gate` · `iac`
 **Seguridad**: `owasp-review` (revisión contra OWASP Top 10:2025, ASVS 5.0 y CWE; LLM y agentes 2026)
@@ -234,6 +234,31 @@ Las listas completas, qué buscar en cada categoría y las fuentes están en
 `shared/.claude/skills/owasp-review/referencia.md`. Cuando un estándar publique edición nueva, se
 actualiza ahí y en esta tabla.
 
+## Ciclos de trabajo con verificador (loop engineering)
+
+Para tareas largas con un final comprobable (implementar un plan hasta que pasen sus tests, migrar
+un módulo hasta que compile, vaciar una lista de errores de lint), en vez de pedirle cada paso a
+Claude diseñas el **ciclo** que trabaja solo. Es la práctica que Addy Osmani llamó
+[*loop engineering*](https://addyosmani.com/blog/loop-engineering/), implementada con piezas
+nativas de Claude Code: un hook `Stop`, subagentes y worktrees. No se instala nada de terceros.
+
+```bash
+git switch -c feat/migracion-billing        # nunca en la rama principal
+> /loop-task migrar src/billing al API v2 — verificador: npm run typecheck && npm test — tope: 15 turnos
+```
+
+| Pieza | Qué hace |
+| --- | --- |
+| **Verificador determinista** | Al final de cada turno, el hook `Stop` corre tu comando. Si falla, Claude sigue con el error a la vista; Claude no decide cuándo terminó. |
+| **Solo comandos de verificación** | El verificador solo admite test, lint, typecheck o build del proyecto encadenados con `&&`: el hook no ejecuta shell arbitrario. |
+| **No se puede hacer trampa** | El estado del ciclo no se edita (hooks `pre-edit` y `pre-bash`), y si cambia el script de `package.json` que usa el verificador, la puerta lo rechaza. |
+| **Línea base** | Si el verificador ya pasa antes de empezar, el ciclo no arranca: no mide lo que quieres lograr. |
+| **Quien hace no aprueba** | En verde, el ciclo exige pasar el agente `reviewer` por el diff y un *Resumen para la persona* antes de cerrar. |
+| **Tope** | 10 turnos por defecto (máximo 50). Al agotarse, se detiene y deja el informe en `.loop/PROGRESS.md`. |
+
+El ciclo no hace commit, push ni merge: el resultado se revisa como cualquier PR. Para finales que
+requieren juicio y no un comando, la skill explica cómo combinarlo con `/goal` de Claude Code.
+
 ## Orquestación multiagente (nativa)
 
 Todo con herramientas de Claude Code: el tool `Agent` para lanzar subagentes en paralelo, los
@@ -336,7 +361,7 @@ recibir la copia vieja. La solución buena es la misma que exige la baseline §6
 versión** — y de paso hace la instalación reproducible:
 
 ```bash
-npx -y github:lacasoft/dev-starter-kit#v3.1.0 --update --yes    # por tag
+npx -y github:lacasoft/dev-starter-kit#v3.2.0 --update --yes    # por tag
 npx -y github:lacasoft/dev-starter-kit#<commit> --update --yes  # por commit (el SHA del tag)
 ```
 
@@ -357,4 +382,4 @@ Repo **público (MIT)** distribuido por `npx github:` → la rama **`master` deb
   (dry-run) y en un monorepo multi-stack, en cada PR. La lista sale de `scripts/stacks.cjs`, que la deriva de `install.js`.
 - **Cómo añadir** agentes, skills, stacks o externos: ver [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Versionado**: SemVer en `package.json` + `CHANGELOG.md`, con tag anotado por versión
-  (`v3.1.0`). Instala siempre pineando (`#v3.1.0`): es reproducible y evita la cache de npx.
+  (`v3.2.0`). Instala siempre pineando (`#v3.2.0`): es reproducible y evita la cache de npx.

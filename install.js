@@ -456,7 +456,7 @@ function stackRules(stacks) {
 // env, y el `claude-flow init` que traía sus propios hooks) y ya no lo integra; dejarlo haría que
 // cada sesión siguiera llamando a un runtime que nadie mantiene. Lo retirado se informa.
 const isKitHook = (g) =>
-  Array.isArray(g && g.hooks) && g.hooks.length > 0 && g.hooks.every((h) => /hook-handler\.cjs|auto-memory-hook\.mjs/.test((h && h.command) || ""));
+  Array.isArray(g && g.hooks) && g.hooks.length > 0 && g.hooks.every((h) => /hook-handler\.cjs|auto-memory-hook\.mjs|loop\.cjs/.test((h && h.command) || ""));
 const RUFLO = /claude[-_]?flow|ruflo|ruv-swarm|flow-nexus/i;
 // Permisos que versiones anteriores del kit escribían y que ya no se usan. La unión de permisos
 // los arrastraría para siempre. Read(./.env.*) bloqueaba también .env.example: lo sustituyen
@@ -648,7 +648,8 @@ function rufloLeftovers(kitFiles = {}) {
 // La memoria de agente con scope `project` (.claude/agent-memory/) se versiona a propósito: es
 // conocimiento del equipo. La `local` y CLAUDE.local.md son personales. .claude/memory/ es de la
 // memoria propia que tuvo el kit hasta la 2.x: se sigue ignorando para no versionar restos.
-const GITIGNORE = [".claude/memory/", ".claude/agent-memory-local/", "CLAUDE.local.md", ".claude.backup.*", ".env", ".env.*"];
+// Ciclo en curso (skill loop-task): .claude/loop/ es el contrato y .loop/ el progreso. De trabajo, no de equipo.
+const GITIGNORE = [".claude/memory/", ".claude/agent-memory-local/", ".claude/loop/", ".loop/", "CLAUDE.local.md", ".claude.backup.*", ".env", ".env.*"];
 // Los archivos de ejemplo de env van versionados (la baseline los exige), pero ".env.*" los
 // captura. Git aplica la última regla que casa, así que las negaciones van SIEMPRE después.
 const GITIGNORE_KEEP = ["!.env.example", "!.env.sample", "!.env.template"];

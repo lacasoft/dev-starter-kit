@@ -129,6 +129,7 @@ const BASH_DENY = [
   [new RegExp(`${C}(?:rm|mv|chown|chmod)\\s[^\\n;]*\\s/(?:etc|usr|bin|sbin|boot|lib|var|System)(?:/|\\s|$)`), "modifica rutas críticas del sistema"],
   [/\b(?:cat|cp|scp|tar|curl|base64)\b[^\n;]*(?:~|\$HOME)\/\.(?:ssh|aws|gnupg)\b/, "lee o copia credenciales del usuario (~/.ssh, ~/.aws, ~/.gnupg)"],
   [/\bgit\s+(?:commit|push)\b[^\n;]*--no-verify\b/, "salta los hooks de calidad y el escáner de secretos (--no-verify)"],
+  [/^(?!\s*node\s+\.claude\/helpers\/loop\.cjs\b).*\.claude\/loop\/state\.json/, "toca el estado del ciclo (.claude/loop/state.json), que solo escribe loop.cjs: el verificador no se negocia; usa loop.cjs status o stop"],
 ];
 
 // Paquetes que un comando de instalación añadiría. null = no es una instalación;
@@ -265,6 +266,9 @@ switch (action) {
       denyPreTool(
         `Posible secreto (${hit}) en el contenido a escribir${file ? ` en ${file}` : ""}. No hardcodees secretos: usa variables de entorno / secret manager. Si es un placeholder/ejemplo, hazlo evidente (p.ej. prefijo your_/example_).`
       );
+    }
+    if (/(^|\/)\.claude\/loop\/state\.json$/.test(file)) {
+      denyPreTool("El estado del ciclo (.claude/loop/state.json) solo lo escribe loop.cjs: ni el verificador ni el contador de turnos se editan a mano. Usa `node .claude/helpers/loop.cjs status` o `stop`.");
     }
     if (/(^|\/)\.env(\.|$)/.test(file)) {
       addContext(`Editando un archivo de entorno (${file}): no versiones secretos reales; usa .env.example con placeholders.`);

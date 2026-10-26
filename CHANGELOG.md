@@ -4,6 +4,18 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](htt
 
 ## [No publicado]
 
+## [3.2.0] - 2026-10-27
+
+### Added
+- **Ciclos de trabajo con verificador (loop engineering): skill `/loop-task` y helper `loop.cjs`.** Para tareas largas con un final comprobable, en vez de pedirle cada paso a Claude se define un ciclo: objetivo, verificador, tope de turnos y revisión independiente. Es la práctica que Addy Osmani llamó *loop engineering*, hecha con piezas nativas de Claude Code (hook `Stop`, subagentes, worktrees), sin nada de terceros.
+  - **Verificador determinista**: al final de cada turno, el hook `Stop` corre el comando del ciclo. Si falla, bloquea el cierre y le devuelve el error a Claude; Claude no decide cuándo terminó.
+  - **Solo comandos de verificación**: como el hook corre fuera de los permisos de Claude Code, el verificador solo admite test, lint, typecheck o build del proyecto encadenados con `&&` (sin `;`, `|`, redirecciones ni subshells).
+  - **Sin trampas**: el contrato vive en `.claude/loop/state.json`, que solo escribe el helper (Claude Code protege `.claude/` y los hooks `pre-edit`/`pre-bash` del kit también); si cambia el script de `package.json` que usa el verificador, la puerta lo rechaza.
+  - **Línea base**: si el verificador ya pasa antes de empezar, el ciclo no arranca (`--allow-passing` para refactors que deben mantenerse en verde).
+  - **Quien hace no aprueba**: en verde, el ciclo exige pasar el agente `reviewer` por el diff y escribir un "Resumen para la persona" en `.loop/PROGRESS.md` antes de cerrar.
+  - **Tope y aislamiento**: 10 turnos por defecto (máximo 50) y solo en una rama o worktree propio, nunca en `main`/`master`/`develop`. El ciclo no hace commit, push ni merge.
+  - La skill explica cuándo **no** usar un ciclo y cómo combinarlo con `/goal` cuando el final requiere juicio. 32 tests nuevos (144 en total).
+
 ## [3.1.0] - 2026-10-26
 
 ### Added
