@@ -37,7 +37,7 @@
 | `/scripts` | utilidades |
 | `/examples` | ejemplos |
 
-Nunca en la raíz. En `.gitignore`: `/docs` (salvo `/docs/adr`, que SÍ se versiona), `.claude/agent-memory-local/`, `CLAUDE.local.md`, `*.local.*`, `.env*`. `.claude/agent-memory/` **sí** se versiona (es memoria del equipo). Los ADRs son historia del proyecto: deben sobrevivir un clone y verse para todos.
+Nunca en la raíz. En `.gitignore`: `/docs/*` con `!/docs/adr/` después (no `/docs` a secas: git no puede reincluir nada dentro de un directorio excluido), `.claude/agent-memory-local/`, `CLAUDE.local.md`, `*.local.*`, `.env*`. `.claude/agent-memory/` **sí** se versiona (es memoria del equipo). Los ADRs son historia del proyecto: deben sobrevivir un clone y verse para todos.
 
 ## 3. Coordinación de agentes (nativa de Claude Code)
 

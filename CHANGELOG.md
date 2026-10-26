@@ -4,6 +4,20 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](htt
 
 ## [No publicado]
 
+## [3.1.0] - 2026-10-26
+
+### Added
+- **Del diseño al código: `/project-context <ruta>/design.md`.** Si diseñaste el sistema con [system-design-kit](https://github.com/lacasoft/system-design-kit), `project-context` traslada el diseño al proyecto sin reescribirlo: visión y "fuera de alcance (v1)", atributos de calidad con sus umbrales, modelo de dominio y contratos, arquitectura con las fallas previstas (y sus tests de regresión), supuestos pendientes, y **un ADR por decisión** con la plantilla de la skill `adr`. Lo derivable del repo (stack real, comandos, estructura) sigue saliendo del repo. Anota el diseño de origen y su fecha, así que al reimportar solo actualiza lo que vino de ahí; un ADR aceptado se reemplaza, no se edita. Mapeo completo en `skills/project-context/desde-design.md`. Probado en una sesión real: 3 ADRs desde las decisiones y 9 pendientes señalados, uno de ellos un hueco del propio diseño (validación de `long_url` frente a SSRF).
+- **Regla §6.1.7: sin costo ni ataduras.** Nada de pago, que exija API key o cuenta de un tercero, o con licencia propietaria o modificada. Está en la baseline y en la checklist que el hook `pre-bash` muestra al pedir confirmación de una instalación.
+
+### Changed
+- **Se retiran las recomendaciones que no cumplen §6.1.7** y pasan a `components.json` → `discarded` con su motivo: los plugins `security-guidance` (una llamada pagada a Opus por turno y por commit) y `claude-security` (licencia propietaria); el LSP de PHP `php-lsp`, que depende de Intelephense (licencia propietaria); y `react-doctor` (MIT modificada con restricciones, y además sugerido como `@latest`). En los overlays de React y React Native lo sustituyen `eslint-plugin-react-hooks` y los profilers de React DevTools y React Native DevTools.
+
+### Fixed
+- **El agente no podía leer `.env.example`.** `settings.json` denegaba `Read(./.env.*)`, y ese patrón atrapa también los ejemplos, que son justo la documentación versionada de las variables (y `project-context` la necesita). Las reglas de permisos no admiten excepciones, así que ahora hay denies explícitos para los `.env` reales comunes y un hook `pre-read` que bloquea cualquier `.env*` y `.envrc`, en cualquier carpeta, salvo `.example`, `.sample` y `.template`. `--update` retira el `Read(./.env.*)` viejo de los proyectos y lo informa, igual que `Bash(npx react-doctor*)`.
+- **La baseline indicaba un `.gitignore` que no funciona.** `/docs` con `!/docs/adr` no reincluye los ADRs: git no puede reincluir nada dentro de un directorio excluido. Ahora indica `/docs/*` con `!/docs/adr/`.
+- 12 tests nuevos (112 en total).
+
 ## [3.0.2] - 2026-10-18
 
 ### Fixed

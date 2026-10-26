@@ -458,6 +458,10 @@ function stackRules(stacks) {
 const isKitHook = (g) =>
   Array.isArray(g && g.hooks) && g.hooks.length > 0 && g.hooks.every((h) => /hook-handler\.cjs|auto-memory-hook\.mjs/.test((h && h.command) || ""));
 const RUFLO = /claude[-_]?flow|ruflo|ruv-swarm|flow-nexus/i;
+// Permisos que versiones anteriores del kit escribían y que ya no se usan. La unión de permisos
+// los arrastraría para siempre. Read(./.env.*) bloqueaba también .env.example: lo sustituyen
+// denies explícitos y el hook pre-read.
+const RETIRED_PERMISSIONS = new Set(["Read(./.env.*)", "Bash(npx react-doctor*)"]);
 const isRuflo = (v) => RUFLO.test(typeof v === "string" ? v : JSON.stringify(v));
 
 function mergeSettings(kitPath, destPath, retired = []) {
@@ -502,6 +506,10 @@ function mergeSettings(kitPath, destPath, retired = []) {
     // allow/deny/ask son listas (se unen); defaultMode y similares son escalares (gana el tuyo).
     if (Array.isArray(a) || Array.isArray(b)) {
       perms[k] = [...new Set([...(a || []), ...(b || [])])].filter((p) => {
+        if (RETIRED_PERMISSIONS.has(p)) {
+          retired.push(`permiso ${p} (el kit ya no lo usa)`);
+          return false;
+        }
         if (!isRuflo(p)) return true;
         retired.push(`permiso ${p}`);
         return false;
@@ -569,7 +577,7 @@ function reportLayer(ctx) {
   if (l.length) console.log(`  📋 ${l.join(" · ")}`);
   if (ctx.retiredSettings.length) {
     const dry = FLAGS.dryRun ? "(dry-run) " : "";
-    console.log(`\n  ${dry}🧹 Retirado de settings.json por apuntar a Ruflo (claude-flow): ${[...new Set(ctx.retiredSettings)].join(" · ")}`);
+    console.log(`\n  ${dry}🧹 Retirado de settings.json (Ruflo o permisos que el kit ya no usa): ${[...new Set(ctx.retiredSettings)].join(" · ")}`);
     if (!FLAGS.dryRun) console.log("     Si lo necesitabas, está en el backup .claude.backup.* de esta ejecución.");
   }
   if (ctx.conflicts.length) {

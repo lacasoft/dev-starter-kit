@@ -411,6 +411,24 @@ test("--stack explícito gana sobre el stack recordado", () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test("--update retira Read(./.env.*), que bloqueaba .env.example, y conserva tus denies", () => {
+  const dir = proyecto();
+  const sp = path.join(dir, ".claude", "settings.json");
+  const s = leerJSON(sp);
+  s.permissions.deny.push("Read(./.env.*)", "Read(./secretos/**)");
+  fs.writeFileSync(sp, JSON.stringify(s, null, 2));
+
+  const salida = instalar(dir, ["--update"]);
+
+  const deny = leerJSON(sp).permissions.deny;
+  assert.ok(!deny.includes("Read(./.env.*)"), "el patrón viejo se retira");
+  assert.ok(deny.includes("Read(./.env.production)"), "lo sustituyen denies explícitos");
+  assert.ok(deny.includes("Read(./secretos/**)"), "tus denies siguen");
+  assert.match(JSON.stringify(leerJSON(sp).hooks.PreToolUse), /pre-read/, "y el hook pre-read");
+  assert.match(salida, /Read\(\.\/\.env\.\*\) \(el kit ya no lo usa\)/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test("--update nunca toca la memoria ni CLAUDE.project.md", () => {
   const dir = proyecto();
   const mem = path.join(dir, ".claude", "memory", "notas.md");

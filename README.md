@@ -34,7 +34,7 @@ Dentro de **cualquier proyecto** (nuevo o heredado), sin clonar nada:
 ```bash
 npx -y github:lacasoft/dev-starter-kit              # interactivo
 npx -y github:lacasoft/dev-starter-kit --yes --all  # desatendido (todo)
-npx -y github:lacasoft/dev-starter-kit#v3.0.2       # fijar una versión (recomendado)
+npx -y github:lacasoft/dev-starter-kit#v3.1.0       # fijar una versión (recomendado)
 ```
 
 Toma siempre la última versión de `master` (o el tag indicado). Repo **público (MIT)**.
@@ -211,6 +211,13 @@ seguridad), scripts `pre/postinstall`, y si algo del repo ya lo cubre. Si un com
 Como defensa en profundidad, `settings.json` deniega además `sudo`, `publish`, `chmod 777` y la lectura
 de `~/.ssh` y `~/.aws` por permisos, para el caso de que los hooks estén desactivados.
 
+Los archivos `.env` reales (también `.env.production`, `.env.local`, `.envrc`, en cualquier carpeta)
+no se leen: lo impide el hook `pre-read`. Los ejemplos (`.env.example`, `.env.sample`,
+`.env.template`) sí, porque documentan las variables sin valores.
+
+**Regla para cualquier externo** (§6.1.7): nada de pago, que exija API key o cuenta de un tercero,
+o con licencia propietaria o modificada.
+
 ## Estándares de seguridad
 
 | Estándar | Edición | Dónde se aplica |
@@ -329,7 +336,7 @@ recibir la copia vieja. La solución buena es la misma que exige la baseline §6
 versión** — y de paso hace la instalación reproducible:
 
 ```bash
-npx -y github:lacasoft/dev-starter-kit#v3.0.2 --update --yes    # por tag
+npx -y github:lacasoft/dev-starter-kit#v3.1.0 --update --yes    # por tag
 npx -y github:lacasoft/dev-starter-kit#<commit> --update --yes  # por commit (el SHA del tag)
 ```
 
@@ -350,4 +357,4 @@ Repo **público (MIT)** distribuido por `npx github:` → la rama **`master` deb
   (dry-run) y en un monorepo multi-stack, en cada PR. La lista sale de `scripts/stacks.cjs`, que la deriva de `install.js`.
 - **Cómo añadir** agentes, skills, stacks o externos: ver [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Versionado**: SemVer en `package.json` + `CHANGELOG.md`, con tag anotado por versión
-  (`v3.0.2`). Instala siempre pineando (`#v3.0.2`): es reproducible y evita la cache de npx.
+  (`v3.1.0`). Instala siempre pineando (`#v3.1.0`): es reproducible y evita la cache de npx.

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Entry-point único de hooks. Claude Code pasa el payload del hook como JSON por STDIN.
- * Acciones (1ª arg): pre-bash, pre-edit, post-edit, session-start, memory-only.
+ * Acciones (1ª arg): pre-bash, pre-edit, pre-read, post-edit, session-start, memory-only.
  * Una acción desconocida (p. ej. de un settings.json antiguo) no hace nada y sale con 0.
  *
  * Diseño: solo interviene en casos explícitos. Con exit 2, los destructivos clásicos
@@ -268,6 +268,20 @@ switch (action) {
     }
     if (/(^|\/)\.env(\.|$)/.test(file)) {
       addContext(`Editando un archivo de entorno (${file}): no versiones secretos reales; usa .env.example con placeholders.`);
+    }
+    break;
+  }
+
+  case "pre-read": {
+    // Archivos de entorno reales: nunca se leen. Los ejemplos sí, porque son la documentación
+    // versionada de las variables (y la skill project-context los necesita). Va en un hook y no
+    // en permissions.deny porque las reglas de permisos no admiten excepciones: Read(./.env.*)
+    // bloqueaba también .env.example.
+    const base = path.basename(toolInput.file_path || "");
+    if (/^\.env(rc|\..+)?$/.test(base) && !/\.(example|sample|template)$/.test(base)) {
+      denyPreTool(
+        `Lectura bloqueada: ${base} puede contener secretos reales. Usa .env.example para conocer las variables (solo nombres); si necesitas un valor concreto, pídeselo a la persona.`
+      );
     }
     break;
   }
