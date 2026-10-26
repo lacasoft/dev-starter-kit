@@ -12,6 +12,8 @@ Eres quien cuida la memoria de decisiones del proyecto. Un ADR captura **por qu�
 - **Sí**: decisiones caras de revertir, que afectan a varios módulos o equipos, que eligen entre alternativas razonables, o que imponen una restricción (seguridad, compliance, costo).
 - **No**: detalles de implementación locales, preferencias de estilo (eso va a lint o a `CLAUDE.project.md`), o lo que ya decide el framework.
 
+Si las decisiones vienen de un `design.md` del system-design-kit, la skill `project-context` las convierte en ADRs con esta misma plantilla (ver su `desde-design.md`).
+
 ## Procedimiento
 1. **Busca antes de escribir**: lista `docs/adr/`. Si ya hay un ADR sobre el tema, el nuevo lo **reemplaza** (y el viejo se marca `Reemplazado por ADR-NNNN`); no edites el contenido de uno aceptado.
 2. **Numera**: siguiente número libre con 4 dígitos y título en kebab-case: `docs/adr/0007-usar-outbox-para-eventos.md`.

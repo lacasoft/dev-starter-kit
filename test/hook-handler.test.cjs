@@ -93,6 +93,8 @@ test("ASK al registrar un servidor MCP", () =>
   assert.equal(decisionDe("claude mcp add github -- npx -y @modelcontextprotocol/server-github"), "ask"));
 test("el motivo del ASK incluye la antigüedad mínima", () =>
   assert.match(bash("npm install express@5.1.0").permissionDecisionReason, /7\+ días/));
+test("el motivo del ASK recuerda: nada de pago, API key ni licencia propietaria", () =>
+  assert.match(bash("npm install express@5.1.0").permissionDecisionReason, /sin API key.*open source/));
 
 // ---- pre-edit: escáner de secretos ----
 // Fixtures tipo-secreto construidos por concatenación para no dejar literales
@@ -173,3 +175,16 @@ test("memory-only PERMITE la memoria local", () =>
 test("memory-only DENIEGA escribir código", () => assert.equal(memoryOnly("src/app.ts"), "deny"));
 test("memory-only DENIEGA un prefijo engañoso", () =>
   assert.equal(memoryOnly(".claude/agent-memory-evil/x.md"), "deny"));
+
+// ---- pre-read: .env reales no; ejemplos sí ----
+// Read(./.env.*) en permissions bloqueaba también .env.example (las reglas no admiten excepciones).
+function lectura(file) {
+  const { out } = run("pre-read", { tool_input: { file_path: file } });
+  return out.trim() ? JSON.parse(out).hookSpecificOutput.permissionDecision : null;
+}
+for (const f of [".env", ".env.production", ".env.prod", "/repo/apps/api/.env.local", ".envrc"]) {
+  test(`pre-read DENIEGA ${f}`, () => assert.equal(lectura(f), "deny"));
+}
+for (const f of [".env.example", "/repo/.env.sample", ".env.template", "src/env.ts", "environment.md"]) {
+  test(`pre-read PERMITE ${f}`, () => assert.equal(lectura(f), null));
+}

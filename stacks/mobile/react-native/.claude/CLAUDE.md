@@ -19,7 +19,7 @@
 - Permisos con los módulos de Expo; maneja el caso "denegado".
 
 ## Calidad
-- `npx react-doctor .` incluye reglas específicas de React Native (perf, listas, efectos).
+- `eslint-plugin-react-hooks` en el lint y React Native DevTools (profiler) para listas, renders y efectos.
 
 ## Comandos
 - `npx expo start` · `npm run android` · `npm run ios` · `npm run lint`

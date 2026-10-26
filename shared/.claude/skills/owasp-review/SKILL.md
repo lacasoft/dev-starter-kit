@@ -33,8 +33,6 @@ Si el código llama a un LLM, revisa contra el **OWASP Top 10 for LLM Applicatio
 ## 6. Herramientas
 Corre las que el repo **ya tenga** (`npx --no-install semgrep`, `gitleaks`, `osv-scanner`, `npm audit`, `pip-audit`, `trivy`, `bandit`, `gosec`…). Si falta una y la quieres, instalarla pasa por la baseline §6.1: propónla, no la instales por tu cuenta. Una herramienta ausente no tumba la revisión.
 
-Si el plugin `claude-security` está instalado y el cambio es grande o sensible, propón además un escaneo de cambios con él (es más profundo y caro; pide confirmar el costo). Sus hallazgos se integran a tu informe con su CWE; no los copies sin verificarlos.
-
 ## 7. Autocrítica antes de entregar
 Relee tus hallazgos una vez buscando dos cosas: **falsos positivos** (¿de verdad llega input del atacante a ese sink?) y **huecos** (¿qué categoría o capítulo no miraste y por qué?). Corrige y declara lo que quedó fuera.
 

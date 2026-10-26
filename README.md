@@ -34,7 +34,7 @@ Dentro de **cualquier proyecto** (nuevo o heredado), sin clonar nada:
 ```bash
 npx -y github:lacasoft/dev-starter-kit              # interactivo
 npx -y github:lacasoft/dev-starter-kit --yes --all  # desatendido (todo)
-npx -y github:lacasoft/dev-starter-kit#v3.0.2       # fijar una versión (recomendado)
+npx -y github:lacasoft/dev-starter-kit#v3.1.0       # fijar una versión (recomendado)
 ```
 
 Toma siempre la última versión de `master` (o el tag indicado). Repo **público (MIT)**.
@@ -146,6 +146,29 @@ comandos de build/test/lint antes de documentarlos, rellena lo derivable y te pr
 tanda lo que no se puede deducir. Mientras siga siendo la plantilla, cada sesión arranca con un
 aviso que lo sugiere.
 
+### Desde un diseño (system-design-kit)
+
+Si diseñaste el sistema con [system-design-kit](https://github.com/lacasoft/system-design-kit),
+no reescribas nada: en el proyecto de código, pasa la ruta del diseño.
+
+```bash
+claude --add-dir ../acortador-urls      # para que pueda leer la carpeta del diseño
+> /project-context ../acortador-urls/design.md
+```
+
+| Del diseño | Al proyecto |
+| --- | --- |
+| Requisitos y fuera de alcance | *Visión del producto* (con "Fuera de alcance (v1)") |
+| Requisitos no funcionales y escala | *Atributos de calidad* con sus umbrales |
+| API y modelo de datos | *Modelo / dominio* y contratos en *Arquitectura* |
+| Arquitectura inicial y escenarios de falla | *Arquitectura* (con "Fallas previstas") y tests de regresión en *Testing* |
+| Decisiones clave y tradeoffs | **Un ADR por decisión** en `docs/adr/`, con la plantilla de la skill `adr` |
+| Supuestos sin confirmar | *Pendiente de confirmar* |
+
+Lo que el repo sí sabe (stack real, comandos, estructura) sigue saliendo del repo. El archivo
+anota de qué diseño salió y su fecha, así que si el diseño cambia, volver a correrlo actualiza
+solo lo que vino de ahí; un ADR aceptado no se edita, se reemplaza por otro.
+
 ## Memoria y contexto (nativos de Claude Code)
 
 | Qué | Dónde | Quién lo escribe | Versionado |
@@ -188,6 +211,13 @@ seguridad), scripts `pre/postinstall`, y si algo del repo ya lo cubre. Si un com
 Como defensa en profundidad, `settings.json` deniega además `sudo`, `publish`, `chmod 777` y la lectura
 de `~/.ssh` y `~/.aws` por permisos, para el caso de que los hooks estén desactivados.
 
+Los archivos `.env` reales (también `.env.production`, `.env.local`, `.envrc`, en cualquier carpeta)
+no se leen: lo impide el hook `pre-read`. Los ejemplos (`.env.example`, `.env.sample`,
+`.env.template`) sí, porque documentan las variables sin valores.
+
+**Regla para cualquier externo** (§6.1.7): nada de pago, que exija API key o cuenta de un tercero,
+o con licencia propietaria o modificada.
+
 ## Estándares de seguridad
 
 | Estándar | Edición | Dónde se aplica |
@@ -225,27 +255,26 @@ cubre lo que usábamos. Si un proyecto lo tenía:
 
 **Integrados por stack** (vía `claude-code-templates`, solo los marcados `integrar`):
 - shared: `code-reviewer`, skills `clean-code`, `senior-security`; marketplace oficial de plugins.
-- seguridad (plugins oficiales, **opcionales**, revisados archivo por archivo; el instalador los
-  lista con su condición):
-  - `security-guidance`: revisión automática del diff en cada turno y revisión agéntica en cada
-    commit. Cuesta una llamada a Opus por revisión (`ENABLE_STOP_REVIEW=0` deja solo la de commit) e
-    instala `claude-agent-sdk` sin versión fijada en `~/.claude/security` al iniciar sesión.
-  - `claude-security`: escaneo profundo bajo demanda con verificación independiente y SARIF. Pesado
-    en tokens; úsalo antes de un release grande. Licencia propietaria (se usa, no se destila).
 - code intelligence (plugins oficiales LSP, se indican por stack): `typescript-lsp` (Nest, Express,
-  Angular, React, Next, React Native), `pyright-lsp` (FastAPI, Django), `php-lsp`, `jdtls-lsp`
-  (Spring), `csharp-lsp` (.NET). Sin plugin oficial para Dart ni Solidity.
+  Angular, React, Next, React Native), `pyright-lsp` (FastAPI, Django), `jdtls-lsp`
+  (Spring), `csharp-lsp` (.NET). Sin plugin oficial libre para PHP (`php-lsp` usa Intelephense,
+  de licencia propietaria), Dart ni Solidity.
 - backend: `database-architect`, `test-engineer`; skill `docker-expert`.
 - frontend/mobile: `frontend-developer`, `ui-ux-designer`; skills `frontend-design`, `ui-design-system`.
-- frontend/react + mobile/react-native: dep npm de animación (`motion` / `react-native-reanimated`)
-  + `react-doctor` (auditoría on-demand, no se cablea como hook bloqueante).
+- frontend/react + mobile/react-native: dep npm de animación (`motion` / `react-native-reanimated`).
 
 **Opcionales** (en `components.json` pero *no* se instalan solos; añádelos a mano si los quieres):
 `architect-review` (backend) y `senior-frontend` (frontend).
 
-**Descartados** (extracto; los 13 con su motivo están en `components.json` → `discarded`):
+**Regla para todo externo** (baseline §6.1.7): nada de pago, que exija API key o cuenta de un tercero,
+o con licencia propietaria o comercial.
+
+**Descartados** (extracto; los 17 con su motivo están en `components.json` → `discarded`):
 - `ruvnet/claude-flow` (Ruflo) — retirado en la 3.x; ver "Orquestación multiagente".
 - `claude-mem` — duplica la memoria nativa y registra hooks propios.
+- `php-lsp` (Intelephense) y `react-doctor` — licencia propietaria y MIT modificada con restricciones.
+- `security-guidance` y `claude-security` — el primero hace llamadas pagadas a Opus en cada turno y
+  commit; el segundo tiene licencia propietaria. Su lugar lo ocupa la skill `owasp-review`.
 - `semgrep` (Guardian) — envía cada archivo que escribe el agente a la nube de Semgrep, en todos los
   proyectos, y se autoactualiza con binarios opacos. Alternativa: `semgrep` CLI local o en CI.
 - `serena` — arranca con `uvx` desde el último commit de GitHub, sin versión fijada; los plugins LSP
@@ -307,7 +336,7 @@ recibir la copia vieja. La solución buena es la misma que exige la baseline §6
 versión** — y de paso hace la instalación reproducible:
 
 ```bash
-npx -y github:lacasoft/dev-starter-kit#v3.0.2 --update --yes    # por tag
+npx -y github:lacasoft/dev-starter-kit#v3.1.0 --update --yes    # por tag
 npx -y github:lacasoft/dev-starter-kit#<commit> --update --yes  # por commit (el SHA del tag)
 ```
 
@@ -328,4 +357,4 @@ Repo **público (MIT)** distribuido por `npx github:` → la rama **`master` deb
   (dry-run) y en un monorepo multi-stack, en cada PR. La lista sale de `scripts/stacks.cjs`, que la deriva de `install.js`.
 - **Cómo añadir** agentes, skills, stacks o externos: ver [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Versionado**: SemVer en `package.json` + `CHANGELOG.md`, con tag anotado por versión
-  (`v3.0.2`). Instala siempre pineando (`#v3.0.2`): es reproducible y evita la cache de npx.
+  (`v3.1.0`). Instala siempre pineando (`#v3.1.0`): es reproducible y evita la cache de npx.
