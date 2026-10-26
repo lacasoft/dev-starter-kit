@@ -1234,9 +1234,6 @@ async function main() {
         run(`npm install ${npmDeps.join(" ")}`);
       }
     }
-    if (stacks.some((st) => manifest.byStackId?.[st.id]?.tools?.includes("react-doctor"))) {
-      console.log("\n🩺 react-doctor disponible: `npx react-doctor@latest .` para auditar (state/perf/a11y). No se cablea como hook bloqueante.");
-    }
 
     // 5b) tooling de git: husky + lint-staged + commitlint + plantilla de PR (la baseline los exige)
     await maybeSetupHusky();

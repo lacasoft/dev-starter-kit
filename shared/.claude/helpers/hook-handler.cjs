@@ -189,7 +189,7 @@ function findKitNew(dir, out = [], budget = { n: 500 }) {
 const CHECKLIST =
   "Valida antes de aceptar (baseline §6.1): 1) nombre exacto, ¿typosquat? 2) publisher oficial y mantenimiento vivo " +
   "3) versión pineada, nunca @latest/@alpha 4) publicada hace 7+ días (salvo fix de seguridad) 5) scripts pre/postinstall " +
-  "6) ¿algo del repo ya lo cubre?";
+  "6) ¿algo del repo ya lo cubre? 7) gratis, sin API key ni cuenta de terceros, y con licencia open source (no propietaria ni modificada)";
 
 // Ejecutores que descargan y corren un paquete en un solo paso, como `npx`.
 const REMOTE_RUNNERS = [

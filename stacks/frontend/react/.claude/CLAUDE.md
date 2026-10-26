@@ -18,7 +18,7 @@
 
 ## UI y calidad
 - shadcn/ui + Tailwind. Animaciones con `motion` (framer-motion) cuando aporten, no decorativas.
-- `npx react-doctor .` para auditar (state/effects/perf/a11y/bundle) antes de cerrar features grandes o en CI; no como hook bloqueante.
+- Auditoría con herramientas libres: `eslint-plugin-react-hooks` (reglas de hooks y efectos) en el lint, el Profiler de React DevTools para renders de más, y el analizador de bundle del bundler antes de cerrar features grandes.
 
 ## Comandos
 - `npm run dev` · `build` · `preview` · `lint`

@@ -93,6 +93,8 @@ test("ASK al registrar un servidor MCP", () =>
   assert.equal(decisionDe("claude mcp add github -- npx -y @modelcontextprotocol/server-github"), "ask"));
 test("el motivo del ASK incluye la antigüedad mínima", () =>
   assert.match(bash("npm install express@5.1.0").permissionDecisionReason, /7\+ días/));
+test("el motivo del ASK recuerda: nada de pago, API key ni licencia propietaria", () =>
+  assert.match(bash("npm install express@5.1.0").permissionDecisionReason, /sin API key.*open source/));
 
 // ---- pre-edit: escáner de secretos ----
 // Fixtures tipo-secreto construidos por concatenación para no dejar literales

@@ -120,6 +120,7 @@ Antes de aceptar una instalación, verifica y **di en voz alta** el resultado:
 4. **Antigüedad**: no adoptes una versión publicada hace menos de 7 días salvo que sea un fix de seguridad; los paquetes comprometidos suelen retirarse en ese plazo.
 5. **Qué ejecuta al instalarse**: revisa scripts `postinstall`/`preinstall`; ante un script opaco, no instales.
 6. **¿Hace falta?**: si algo en el repo ya lo cubre, no añadas superficie de ataque.
+7. **Sin costo ni ataduras**: nada de pago, que exija API key o cuenta de un tercero, o con licencia propietaria o comercial. Si la única opción lo requiere, no lo instales: dilo y propón una alternativa libre.
 
 Los **servidores MCP, plugins, skills y agentes de terceros** son código de terceros con tus permisos: misma checklist, versión fijada y solo los permisos que necesiten.
 

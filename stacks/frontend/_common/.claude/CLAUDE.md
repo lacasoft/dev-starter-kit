@@ -31,4 +31,4 @@
 - Sanitiza HTML antes de inyectarlo (XSS); no confíes en datos del backend para `innerHTML`/`[innerHTML]`.
 
 ## Agentes/skills recomendados (los instala el kit)
-Agentes: `frontend-developer`, `ui-ux-designer`, `code-reviewer`. Skills: `frontend-design`, `ui-design-system`, `senior-frontend`, `clean-code`. Herramienta: `react-doctor` (en React).
+Agentes: `frontend-developer`, `ui-ux-designer`, `code-reviewer`. Skills: `frontend-design`, `ui-design-system`, `senior-frontend`, `clean-code`.

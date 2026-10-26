@@ -42,7 +42,6 @@
       "Bash(npm test*)",
       "Bash(npm ci)",
       "Bash(npm install)",
-      "Bash(npx react-doctor*)",
       "Bash(pnpm run *)",
       "Bash(pnpm test*)",
       "Bash(pnpm install)",
