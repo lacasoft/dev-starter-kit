@@ -1343,6 +1343,8 @@ async function main() {
     console.log("   • Abre pi en el proyecto y acepta su confianza: sin ella Pi no carga .pi/ (ni las skills, ni los");
     console.log('     imports de CLAUDE.md, ni las reglas). Con la capa activa verás "🧰 dev-kit" abajo.');
     console.log("   • Las skills se invocan como /skill:<nombre> (/skill:project-context, /skill:tdd…) y el estado del kit con /status.");
+    console.log("   • Guardrails: antes de cada herramienta se aplican las reglas del kit y las deny/ask de .claude/settings.json;");
+    console.log("     lo que pide confirmación se bloquea si no hay interfaz (pi -p). No es aislamiento: para eso, un contenedor o una VM.");
     console.log("   • En Pi no hay subagentes: /swarm y los agentes de .claude/agents/ son solo de Claude Code.");
     console.log("   • Pi envía telemetría anónima de instalación por defecto: PI_TELEMETRY=0 la apaga.");
     console.log("   • Instala ripgrep y fd con el gestor de paquetes de tu sistema: si faltan, Pi descarga la última versión sin fijarla.");
