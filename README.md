@@ -16,15 +16,16 @@ Configuración `.claude` unificada para backend, frontend, mobile y blockchain. 
 │   ├── agents/                 # 14 agentes (5 core + 9 especialistas) — ver "Agentes incluidos"
 │   ├── skills/                 # 19 skills (flujo + contexto + ingeniería + seguridad) — ver "Skills incluidas"
 │   ├── commands/               # /swarm, /kit:status
-│   ├── helpers/                # hook-handler, loop, statusline
+│   ├── helpers/                # claude-imports, claude-rules, hook-handler, loop, statusline
 │   └── templates/              # PROJECT.template.md (definición del proyecto)
+├── shared/.pi/extensions/      # capa opcional para Pi Agent (--pi): imports de CLAUDE.md, reglas y avisos
 ├── stacks/                     # OVERLAYS: 13 stacks seleccionables + un `_common` por categoría
 │   ├── backend/{_common,nestjs,express,fastapi,django,php,spring,dotnet}
 │   ├── frontend/{_common,angular,react,nextjs}
 │   ├── mobile/{_common,react-native,flutter}
 │   └── blockchain/solidity
 ├── scripts/                    # validate.cjs (integridad del kit) · stacks.cjs (fuente única)
-└── test/                       # tests del hook-handler y de --update (node:test, zero-dep)
+└── test/                       # tests de helpers, instalador y capa de Pi (node:test, zero-dep)
 ```
 
 ## Uso

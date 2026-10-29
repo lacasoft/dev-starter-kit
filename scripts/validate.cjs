@@ -8,6 +8,7 @@
  *  - Sin entidades HTML sin escapar (&lt; / &gt;) en agentes/skills
  *  - JSON válido: components.json, shared/.claude/settings.json
  *  - Sintaxis JS: install.js, helpers, este script
+ *  - Capa de Pi: la extensión carga helpers de .claude/ que existen
  *  - Overlays de stack presentes y no vacíos; plantilla de proyecto presente
  */
 const fs = require("fs");
@@ -128,6 +129,18 @@ if (declIds.size === 0) errors.push("install.js: no se pudo extraer el objeto ST
 for (const id of declIds) if (!fsIds.has(id)) errors.push(`STACKS["${id}"] (install.js) sin overlay stacks/${id}/.claude/CLAUDE.md`);
 for (const id of fsIds) if (!declIds.has(id)) errors.push(`overlay stacks/${id} sin entrada en STACKS de install.js (no se detectaría)`);
 
+// --- capa de Pi Agent ---
+// La extensión carga helpers de .claude/ por ruta relativa: si uno se renombra o se borra, Pi
+// fallaría al cargarla en cada proyecto con --pi.
+for (const ext of walk(path.join(ROOT, "shared/.pi/extensions"), (p) => p.endsWith(".ts"))) {
+  const refs = [...fs.readFileSync(ext, "utf8").matchAll(/\.\.\/\.\.\/\.claude\/helpers\/([\w.-]+)/g)].map((m) => m[1]);
+  if (!refs.length) errors.push(`${rel(ext)}: no carga ningún helper de .claude/`);
+  for (const h of refs) {
+    if (!fs.existsSync(path.join(ROOT, "shared/.claude/helpers", h))) errors.push(`${rel(ext)}: carga .claude/helpers/${h}, que no existe`);
+    else ok.push(`Pi: ${path.basename(ext)} → ${h}`);
+  }
+}
+
 // --- es-MX: peninsularismos prohibidos (agentes, skills, overlays, comandos, plantillas, helpers; ver CONTRIBUTING.md) ---
 // Excluye CLAUDE.base.md y CONTRIBUTING.md a propósito: ahí vive el glosario que cita estos términos.
 const ESMX = /\b(coste|costes|montar|montamos|montas|ordenador|ordenadores|fichero|ficheros|vale|pillas|pillamos|pill[eé])\b/i;
@@ -138,6 +151,7 @@ const esmxFiles = [
   ...walk(path.join(ROOT, "shared/.claude/commands"), (p) => p.endsWith(".md")),
   ...walk(path.join(ROOT, "shared/templates"), (p) => p.endsWith(".md")),
   ...walk(path.join(ROOT, "shared/.claude/helpers"), (p) => /\.(cjs|mjs|js)$/.test(p)),
+  ...walk(path.join(ROOT, "shared/.pi"), (p) => p.endsWith(".ts")),
   path.join(ROOT, "install.js"), // es el texto que más lee el usuario: sale por consola en cada instalación
 ];
 for (const f of esmxFiles) {

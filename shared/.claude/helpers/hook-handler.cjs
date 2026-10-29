@@ -313,8 +313,10 @@ switch (action) {
     // línea cada uno. Tras una compactación no se repiten (ya estaban en el contexto resumido).
     if (payload.source === "compact") break;
     const avisos = [];
+    // Dentro de Pi Agent (que marca a sus procesos con PI_CODING_AGENT=true) las skills son /skill:<nombre>.
+    const skill = (n) => (process.env.PI_CODING_AGENT === "true" ? `/skill:${n}` : `/${n}`);
     if (projectDefinitionIsEmpty(path.join(ROOT, "CLAUDE.project.md"))) {
-      avisos.push("CLAUDE.project.md falta o sigue siendo la plantilla: sin él solo conoces reglas genéricas. Propón correr /project-context para rellenarlo con el contexto real del repo.");
+      avisos.push(`CLAUDE.project.md falta o sigue siendo la plantilla: sin él solo conoces reglas genéricas. Propón correr ${skill("project-context")} para rellenarlo con el contexto real del repo.`);
     }
     const pendientes = findKitNew(path.join(ROOT, ".claude"));
     if (pendientes.length) {
