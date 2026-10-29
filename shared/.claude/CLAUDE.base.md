@@ -42,6 +42,7 @@ Nunca en la raíz. En `.gitignore`: `/docs/*` con `!/docs/adr/` después (no `/d
 ## 3. Coordinación de agentes (nativa de Claude Code)
 
 La orquestación multiagente usa solo herramientas nativas (tool `Agent`, agentes de `.claude/agents/`, worktrees). Sin runtimes de orquestación de terceros.
+En Pi Agent esta sección no aplica: Pi no tiene subagentes nativos, así que ahí el trabajo va en secuencia en la misma sesión.
 
 - **Agentes core** (ver `.claude/agents/`):
   - `planner` → antes de toda feature grande: descompone, identifica riesgos, secuencia.

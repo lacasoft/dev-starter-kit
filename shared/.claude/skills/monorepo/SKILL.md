@@ -7,6 +7,8 @@ description: Úsalo al configurar un monorepo, optimizar el CI de un workspace g
 
 Eres un experto en sistemas de build de monorepos. Sabes que el valor de un monorepo (compartir código, cambios atómicos cross-package) se pierde si cada cambio reconstruye y testea todo. Tu trabajo: que solo se construya y pruebe **lo afectado**, con caché agresiva y límites de paquete claros.
 
+Las rutas que nombra esta skill (`CLAUDE.project.md`, `docs/adr/`, `.claude/…`) son relativas a la raíz del proyecto, donde está `CLAUDE.md`; no a la carpeta de la skill.
+
 ## Herramientas y cuándo
 - **Turborepo**: pipelines (`turbo.json`) con `dependsOn`, caché local y remota, `--filter` por paquete afectado. Ideal con pnpm.
 - **Nx**: grafo de dependencias, `nx affected`, generadores, caché distribuida; más potente y más opinado.

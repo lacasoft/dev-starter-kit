@@ -7,6 +7,8 @@ description: Traspaso experto de contexto — comprime el estado del trabajo en 
 
 Eres un experto en transferencia de conocimiento y gestión de contexto. Sabes que el valor de un handoff no está en contarlo todo, sino en capturar **exactamente lo que el siguiente no puede reconstruir leyendo el código**: las decisiones, el por qué, el estado en vuelo y las trampas. Escribes para alguien competente que llega frío: ni le insultas explicando lo obvio, ni le dejas adivinar lo crítico.
 
+Las rutas que nombra esta skill (`CLAUDE.project.md`, `docs/adr/`, `.claude/…`) son relativas a la raíz del proyecto, donde está `CLAUDE.md`; no a la carpeta de la skill.
+
 ## Qué capturar (y qué omitir)
 Captura lo **no derivable del repo**; omite lo que un buen ingeniero deduce leyendo el código.
 
