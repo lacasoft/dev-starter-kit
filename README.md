@@ -16,9 +16,9 @@ Configuración `.claude` unificada para backend, frontend, mobile y blockchain. 
 │   ├── agents/                 # 14 agentes (5 core + 9 especialistas) — ver "Agentes incluidos"
 │   ├── skills/                 # 19 skills (flujo + contexto + ingeniería + seguridad) — ver "Skills incluidas"
 │   ├── commands/               # /swarm, /kit:status
-│   ├── helpers/                # claude-imports, claude-rules, hook-handler, loop, statusline
+│   ├── helpers/                # claude-imports, claude-permissions, claude-rules, hook-handler, loop, statusline
 │   └── templates/              # PROJECT.template.md (definición del proyecto)
-├── shared/.pi/extensions/      # capa opcional para Pi Agent (--pi): imports de CLAUDE.md, reglas y avisos
+├── shared/.pi/extensions/      # capa opcional para Pi Agent (--pi): contexto de CLAUDE.md y guardrails
 ├── stacks/                     # OVERLAYS: 13 stacks seleccionables + un `_common` por categoría
 │   ├── backend/{_common,nestjs,express,fastapi,django,php,spring,dotnet}
 │   ├── frontend/{_common,angular,react,nextjs}
@@ -35,7 +35,7 @@ Dentro de **cualquier proyecto** (nuevo o heredado), sin clonar nada:
 ```bash
 npx -y github:lacasoft/dev-starter-kit              # interactivo
 npx -y github:lacasoft/dev-starter-kit --yes --all  # desatendido (todo)
-npx -y github:lacasoft/dev-starter-kit#v3.2.0       # fijar una versión (recomendado)
+npx -y github:lacasoft/dev-starter-kit#v3.3.0       # fijar una versión (recomendado)
 ```
 
 Toma siempre la última versión de `master` (o el tag indicado). Repo **público (MIT)**.
@@ -48,7 +48,7 @@ node /ruta/al/kit/install.js
 
 Flags: `--stack backend/nestjs` (fuerza stack; en monorepo, uno por carpeta: `--stack backend/nestjs:apps/api,frontend/nextjs:apps/web`) · `--yes` (no interactivo, conservador) ·
 `--all` (acepta TODO: externos + deps; combínalo con `--yes` para desatendido total) ·
-`--no-external` · `--update`/`--force` (trae la última capa base sin pisar lo que hayas editado) · `--dry-run` (simula) · `--help`.
+`--no-external` · `--pi` (añade la capa para [Pi Agent](#también-con-pi-agent)) · `--update`/`--force` (trae la última capa base sin pisar lo que hayas editado) · `--dry-run` (simula) · `--help`.
 `--no-flow` se sigue aceptando para no romper scripts, pero ya no hace nada.
 
 El instalador:
@@ -68,7 +68,8 @@ El instalador:
    - Se instalan con **versión exacta** y solo versiones con 7+ días publicadas (`npm install -E --before=…`), la misma regla §6.1 que el kit exige al agente.
    - El `pre-commit` corre lint-staged con lo que el proyecto **ya tiene** (prettier, eslint, `tsc --noEmit` si hay `tsconfig.json`) y se escribe `.lintstagedrc.mjs`. Si no hay nada que revisar, no se instala lint-staged ni se deja `pre-commit` (sin configuración bloquearía todos los commits); el mensaje se valida igual con commitlint. Una configuración de lint-staged existente se respeta.
 8. Indica los **plugins de Claude Code** a añadir (shared + por-stack), incluido el de **code intelligence (LSP)** del stack: go-to-definition, referencias y errores de tipos en vivo para el agente. El binario del language server lo instalas tú; el comando exacto sale en pantalla.
-9. Imprime un **resumen del proyecto**: stack y lenguaje, framework, paquetes, motores de datos, volumen de código, tests, calidad, entrega (CI/contenedores), git y entorno. Lo marcado con ⚠️ es un hueco frente a la baseline del kit.
+9. Con `--pi`, añade la **capa de Pi Agent** (`.pi/`): ver [También con Pi Agent](#también-con-pi-agent).
+10. Imprime un **resumen del proyecto**: stack y lenguaje, framework, paquetes, motores de datos, volumen de código, tests, calidad, entrega (CI/contenedores), git y entorno. Lo marcado con ⚠️ es un hueco frente a la baseline del kit.
 
 ### Sin TTY (CI, agentes, tuberías)
 
@@ -202,7 +203,7 @@ un comando que toque el sistema, hay que validar que sea seguro. No es solo una 
 
 | Nivel | Qué cubre | Ejemplos |
 | --- | --- | --- |
-| `deny` | Destructivo, irreversible o fuera del proyecto | `curl … \| sh` · `sudo` · `npm i -g` · `npm publish` · escribir en `/etc`, `/usr` · `dd of=/dev/…` · `chmod 777` · leer `~/.ssh` · `--no-verify` |
+| `deny` | Destructivo, irreversible o fuera del proyecto | `curl … \| sh` · `sudo` · `npm i -g` · `npm publish` · escribir en `/etc`, `/usr` · `dd of=/dev/…` · `chmod 777` · leer `~/.ssh` · leer un `.env` real (`cat`, `grep`, `source`…) · `--no-verify` |
 | `ask` | Mete código de terceros nuevo → lo confirma la persona | `npm install <pkg>` · `pip install <pkg>` · `npx`/`pnpm dlx`/`yarn dlx`/`bunx`/`uvx`/`pipx run` · `claude mcp add` · `claude-code-templates --agent/--skill` |
 | libre | No añade superficie de ataque | `npm ci` · `npm install` (del lockfile) · `pip install -r requirements.txt` · `npx --no-install` |
 
@@ -211,9 +212,11 @@ publisher oficial, **versión pineada** (nunca `@latest`/`@alpha`), **publicada 
 seguridad), scripts `pre/postinstall`, y si algo del repo ya lo cubre. Si un comando se bloquea, la respuesta correcta es replantearlo, no esquivar el hook.
 Como defensa en profundidad, `settings.json` deniega además `sudo`, `publish`, `chmod 777` y la lectura
 de `~/.ssh` y `~/.aws` por permisos, para el caso de que los hooks estén desactivados.
+En [Pi Agent](#también-con-pi-agent), con `--pi`, la extensión del kit aplica estas mismas reglas.
 
 Los archivos `.env` reales (también `.env.production`, `.env.local`, `.envrc`, en cualquier carpeta)
-no se leen: lo impide el hook `pre-read`. Los ejemplos (`.env.example`, `.env.sample`,
+no se leen: lo impide el hook `pre-read`, y `pre-bash` si se intenta desde la shell (`cat`, `grep`,
+`head`, `sed`, `source`, una redirección `<`…). Los ejemplos (`.env.example`, `.env.sample`,
 `.env.template`) sí, porque documentan las variables sin valores.
 
 **Regla para cualquier externo** (§6.1.7): nada de pago, que exija API key o cuenta de un tercero,
@@ -276,6 +279,59 @@ cubre lo que usábamos. Si un proyecto lo tenía:
 - `--update` retira de `settings.json` todo lo que apunte a Ruflo (permisos, hooks, env) y lo informa.
 - El resto (servidores en `.mcp.json`, `.claude-flow/`, `.swarm/`, sus archivos en `.claude/`) se
   **enumera** con el comando para quitarlo, pero no se borra: no lo instaló el kit directamente.
+
+## También con Pi Agent
+
+[Pi](https://github.com/earendil-works/pi) es un agente de código open source (MIT) que funciona con
+modelos de varios proveedores, también locales. Con `--pi`, el kit añade una capa para Pi que reutiliza
+las mismas skills, reglas y helpers: no hay una segunda copia que mantener.
+
+```bash
+npx -y github:lacasoft/dev-starter-kit#v3.3.0 --pi                    # proyecto nuevo
+npx -y github:lacasoft/dev-starter-kit#v3.3.0 --update --pi --yes     # proyecto que ya usa el kit
+```
+
+**Requisitos:** Pi 1.4.0 o superior (paquete `@earendil-works/pi-coding-agent`, pide Node.js 22.19+),
+ripgrep y fd instalados con el gestor de paquetes de tu sistema (si faltan, Pi descarga la última versión
+sin fijarla) y un modelo que use herramientas de forma confiable.
+
+| En Claude Code | En Pi |
+|---|---|
+| `/project-context`, `/tdd`, `/owasp-review`… | `/skill:project-context`, `/skill:tdd`, `/skill:owasp-review`… |
+| `/kit:status` | `/status` |
+| `CLAUDE.md` con `@imports` y reglas de `.claude/rules/` | La extensión expande los imports y añade las reglas |
+| Hooks `PreToolUse` y permisos de `settings.json` | La extensión aplica las mismas reglas (ver abajo) |
+| `/swarm`, subagentes de `.claude/agents/` | No disponibles: Pi no tiene subagentes nativos |
+| `/loop-task` | Todavía no: su puerta es un hook `Stop` de Claude |
+
+**Contexto.** Pi lee `CLAUDE.md`, pero no resuelve sus `@imports` ni carga `.claude/rules/`. La extensión
+expande `CLAUDE.project.md` y la baseline, añade las reglas que Claude carga siempre (las del stack en un
+proyecto de un solo stack y las propias del equipo) y los avisos del inicio de sesión. En un monorepo, las
+reglas por carpeta (`paths:`) todavía no se cargan en Pi.
+
+**Seguridad en Pi.** Pi no tiene sistema de permisos: sin la extensión, ejecuta cualquier herramienta sin
+preguntar. Con `--pi`, antes de cada herramienta, incluidas las llamadas anidadas desde codemode, la extensión aplica:
+- las mismas reglas que los hooks del kit en Claude (`hook-handler.cjs`): lo destructivo se bloquea, los
+  secretos en `write`/`edit` también, y lo que mete código de terceros se confirma contigo;
+- las reglas `deny` y `ask` de `.claude/settings.json` y `settings.local.json`, también las de tu equipo;
+- una confirmación, una vez por sesión, para cada herramienta que el kit no conoce (MCP u otra extensión).
+
+Sin interfaz (`pi -p`), lo que requiere confirmación se bloquea. Son **guardrails, no aislamiento**:
+Pi corre con los permisos de tu usuario y las reglas reconocen patrones, no intenciones. Un script
+(`python -c …`) puede leer un archivo que la regla no vio, y el escaneo de secretos no ve lo que un
+script escribe. Para garantías reales, un contenedor o una VM. Lo mismo vale para Claude Code.
+
+**Confianza del proyecto.** Pi solo carga `.pi/` si confías en la carpeta, y `pi --no-extensions` la
+apaga. Con la capa activa verás `🧰 dev-kit` abajo; si no lo ves, no hay contexto del kit ni guardrails.
+
+**Modelos probados.** Con Claude Sonnet 5.5 (API de Anthropic), `/skill:project-context` funcionó de punta a
+punta en un proyecto NestJS. En system-design-kit, un modelo local pequeño (qwen3 8B) usa herramientas,
+pero no sigue bien el método de las skills. Puedes usar cualquier otro modelo. Para usar modelos de
+Claude en Pi necesitas una API key de Anthropic (pago por uso): la suscripción de Claude es solo para
+Claude Code y las apps de Anthropic.
+
+**Privacidad.** Pi envía telemetría anónima de instalación por defecto; `PI_TELEMETRY=0` la apaga. El
+kit no añade ninguna.
 
 ## Componentes externos (curados, ver `components.json`)
 
@@ -362,7 +418,7 @@ recibir la copia vieja. La solución buena es la misma que exige la baseline §6
 versión** — y de paso hace la instalación reproducible:
 
 ```bash
-npx -y github:lacasoft/dev-starter-kit#v3.2.0 --update --yes    # por tag
+npx -y github:lacasoft/dev-starter-kit#v3.3.0 --update --yes    # por tag
 npx -y github:lacasoft/dev-starter-kit#<commit> --update --yes  # por commit (el SHA del tag)
 ```
 
@@ -378,9 +434,10 @@ Repo **público (MIT)** distribuido por `npx github:` → la rama **`master` deb
   de helpers del árbol, los stacks por categoría, el número de descartados y que los ejemplos
   pineados (`#vX.Y.Z`) apunten a la versión de `package.json`. Si reescribes una de esas frases,
   actualiza el patrón en `scripts/validate.cjs` — la comprobación no debe perderse en silencio.
-- **Tests**: `npm test` (`node:test`, sin dependencias) — guards del hook-handler y `--update`.
+- **Tests**: `npm test` (`node:test`, sin dependencias) — guards del hook-handler, `--update` y los helpers.
+  `PI_BIN=$(command -v pi) npm test` corre además la capa de Pi dentro de Pi real, con su modelo simulado (sin API key).
 - **CI** (`.github/workflows/ci.yml`): valida + tests + smoke-test del instalador en los **13 stacks**
-  (dry-run) y en un monorepo multi-stack, en cada PR. La lista sale de `scripts/stacks.cjs`, que la deriva de `install.js`.
+  (dry-run) y en un monorepo multi-stack, en cada PR, más un job que prueba la capa de Pi dentro de Pi 1.4.0. La lista sale de `scripts/stacks.cjs`, que la deriva de `install.js`.
 - **Cómo añadir** agentes, skills, stacks o externos: ver [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Versionado**: SemVer en `package.json` + `CHANGELOG.md`, con tag anotado por versión
-  (`v3.2.0`). Instala siempre pineando (`#v3.2.0`): es reproducible y evita la cache de npx.
+  (`v3.3.0`). Instala siempre pineando (`#v3.3.0`): es reproducible y evita la cache de npx.
