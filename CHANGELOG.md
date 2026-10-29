@@ -4,6 +4,23 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](htt
 
 ## [No publicado]
 
+### Added
+- **Base para Pi Agent (`--pi`)**: primera parte del soporte para [Pi Agent](https://github.com/earendil-works/pi) ≥ 1.4.0, el mismo enfoque que system-design-kit 1.2.0. Es una capa aditiva: sin `--pi` el instalador hace exactamente lo de antes. Con `--pi`:
+  - `.pi/settings.json` carga las skills desde `.claude/skills` y el comando `/status` desde `.claude/commands/kit/status.md`, sin copias. `/swarm` no se carga, porque depende de los subagentes de Claude Code. Si el archivo ya existe se fusiona, y si no es JSON válido no se toca.
+  - `.pi/extensions/dev-starter-kit.ts`:
+    - Expande los `@imports` de `CLAUDE.md` (`CLAUDE.project.md` y la baseline), que Pi lee pero no resuelve.
+    - Añade las reglas de `.claude/rules/` que Claude Code carga siempre, las que no tienen `paths:`: las del stack en un proyecto de un solo stack y las propias del equipo. En monorepo, las reglas por carpeta todavía no se cargan en Pi.
+    - Pone en el contexto los avisos del inicio de sesión.
+    - Muestra `🧰 dev-kit` en la barra de estado cuando la capa está activa.
+  - Helpers nuevos, zero-dep: `claude-imports.cjs`, el mismo de system-design-kit (reglas de Claude Code; nunca incluye `.env` reales ni `~/.ssh` o `~/.aws`), y `claude-rules.cjs`, que lee `.claude/rules/` como Claude Code (con o sin `paths:`).
+  - El manifiesto registra la capa, así que `--update` la recuerda. Al terminar, el instalador explica la confianza del proyecto, `PI_TELEMETRY=0`, por qué conviene instalar ripgrep y fd, y que en Pi no hay subagentes.
+- CI: job que prueba la capa dentro de Pi 1.4.0 real con su proveedor simulado, sin modelo ni API key.
+
+### Changed
+- Dentro de Pi (`PI_CODING_AGENT=true`), el aviso de inicio de `hook-handler.cjs` sugiere `/skill:project-context`.
+- Las 9 skills que nombran archivos del proyecto aclaran que sus rutas son relativas a la raíz del proyecto. Pi le dice al modelo que las referencias de una skill son relativas a la carpeta de la skill, y en las pruebas un modelo pequeño buscaba los archivos ahí.
+- `swarm-orchestration` y la sección 3 de la baseline dicen que los subagentes son solo de Claude Code. `loop-task` avisa que en Pi todavía no tiene su puerta.
+
 ## [3.2.0] - 2026-10-27
 
 ### Added
