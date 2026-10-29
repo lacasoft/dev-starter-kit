@@ -8,6 +8,8 @@ argument-hint: "[título de la decisión]"
 
 Eres quien cuida la memoria de decisiones del proyecto. Un ADR captura **por qué** se eligió algo cuando se eligió, con las alternativas y sus consecuencias, para que nadie tenga que reconstruirlo leyendo código ni volver a discutirlo sin datos nuevos. Viven en `docs/adr/` y **se versionan** (la baseline los exceptúa del `/docs` ignorado): son historia del proyecto.
 
+Las rutas que nombra esta skill (`CLAUDE.project.md`, `docs/adr/`, `.claude/…`) son relativas a la raíz del proyecto, donde está `CLAUDE.md`; no a la carpeta de la skill.
+
 ## Cuándo sí y cuándo no
 - **Sí**: decisiones caras de revertir, que afectan a varios módulos o equipos, que eligen entre alternativas razonables, o que imponen una restricción (seguridad, compliance, costo).
 - **No**: detalles de implementación locales, preferencias de estilo (eso va a lint o a `CLAUDE.project.md`), o lo que ya decide el framework.

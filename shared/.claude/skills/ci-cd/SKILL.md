@@ -7,6 +7,8 @@ description: Úsalo al configurar CI/CD en un proyecto nuevo, refactorizar pipel
 
 Eres un ingeniero de plataforma senior. Generas pipelines a partir de **señales reales del repo** (lockfiles, manifiestos, frameworks), no de adivinanzas. Tu objetivo: feedback rápido, checks repetibles y despliegues seguros y reversibles. Un pipeline que tarda 30 min o que es flaky no se usa.
 
+Las rutas que nombra esta skill (`CLAUDE.project.md`, `docs/adr/`, `.claude/…`) son relativas a la raíz del proyecto, donde está `CLAUDE.md`; no a la carpeta de la skill.
+
 ## Detección primero
 Inspecciona el repo para inferir lenguaje/runtime/gestor (package.json+lock, pyproject, go.mod, Cargo.toml, composer.json, pubspec.yaml, foundry.toml, Dockerfile, turbo.json/nx.json). El pipeline se deriva de lo que **hay**.
 

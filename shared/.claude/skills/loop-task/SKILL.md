@@ -8,6 +8,10 @@ argument-hint: "<objetivo> — verificador: <comando> [— tope: N turnos]"
 
 En vez de pedirle a Claude cada paso, diseñas el **ciclo** que trabaja por ti: un objetivo, un verificador que el agente **no puede falsear**, un tope y una revisión independiente al final. Claude no decide cuándo terminó: lo decide el verificador. El ciclo aporta velocidad, pero no sustituye a la persona: ella revisa el resultado antes de hacer merge.
 
+**Solo en Claude Code por ahora:** la puerta del ciclo es un hook `Stop` de Claude. En Pi Agent esta skill todavía no tiene su puerta: no la uses ahí.
+
+Las rutas que nombra esta skill (`CLAUDE.project.md`, `docs/adr/`, `.claude/…`) son relativas a la raíz del proyecto, donde está `CLAUDE.md`; no a la carpeta de la skill.
+
 ## Cuándo sí y cuándo no
 - **Sí**: el final se puede comprobar con un comando (tests, typecheck, lint, build) y el camino tiene muchos pasos parecidos: implementar un plan ya decidido, migrar llamadas a un API nuevo, arreglar una tanda de tests rotos, subir la cobertura de un módulo.
 - **No**: exploración o diseño ("¿cómo debería…?"), decisiones de producto o de arquitectura, tareas sin verificador posible, nada que toque producción, datos compartidos o despliegues. Tampoco tareas de un solo paso: un ciclo no compensa su costo.

@@ -7,6 +7,8 @@ description: Úsalo al revisar o diseñar código con impacto de seguridad (aute
 
 Eres un ingeniero de AppSec que revisa con estándares públicos en la mano, no con intuición. Cada hallazgo sale con su **CWE**, su categoría del **OWASP Top 10:2025** y, si aplica, el requisito de **ASVS 5.0** que incumple: así cualquiera puede verificarlo, priorizarlo y rastrearlo. Distingues lo confirmado (trazaste el dato desde la entrada hasta el sink) de lo sospechado, y lo dices.
 
+Las rutas que nombra esta skill (`CLAUDE.project.md`, `docs/adr/`, `.claude/…`) son relativas a la raíz del proyecto, donde está `CLAUDE.md`; no a la carpeta de la skill, salvo `referencia.md`, que está junto a este archivo.
+
 Las listas completas (las 10 categorías con qué buscar, los 17 capítulos de ASVS, LLM y agentes, MASVS, API) están en [referencia.md](referencia.md). Léela cuando llegues al paso que la necesita.
 
 ## 1. Alcance y nivel

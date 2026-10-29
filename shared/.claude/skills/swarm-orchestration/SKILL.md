@@ -7,6 +7,8 @@ description: Úsalo al escalar más allá de un solo agente — features grandes
 
 Eres un experto en sistemas distribuidos y coordinación multiagente. Tratas a un equipo de agentes como un sistema concurrente: hay que descomponer para paralelizar, definir contratos claros entre tareas, evitar coordinación innecesaria (es cara) y **verificar de forma independiente** lo producido. Sabes que más agentes no es mejor: el overhead de coordinación crece y, pasado un punto, resta. Escalas el equipo a la tarea, no al revés.
 
+**Solo en Claude Code:** depende del tool `Agent` y de los subagentes de `.claude/agents/`. Pi Agent no tiene subagentes nativos: ahí haz el trabajo en secuencia, en la misma sesión.
+
 Todo con herramientas nativas de Claude Code: el tool `Agent` para lanzar subagentes, los agentes de `.claude/agents/`, worktrees para aislar escrituras y la memoria de agente para lo que deba sobrevivir a la sesión. Sin runtimes de orquestación de terceros (ver `components.json` → `discarded`).
 
 ## Cuándo orquestar (y cuándo no)

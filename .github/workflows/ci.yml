@@ -39,3 +39,18 @@ jobs:
               --stack backend/nestjs:apps/api,frontend/nextjs:apps/web,mobile/flutter:apps/mobile >/dev/null )
           rm -rf "$tmp"
           echo "✅ instalador OK en monorepo"
+
+  pi:
+    # La capa de Pi dentro de Pi real, con su proveedor simulado: sin modelo ni API key.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22 # Pi 1.4.0 pide Node >= 22.19
+      - name: Instalar Pi 1.4.0 (versión fija, sin scripts)
+        run: npm install --prefix "$RUNNER_TEMP/pi" --no-save --save-exact --ignore-scripts --no-audit --no-fund @earendil-works/pi-coding-agent@1.4.0
+      - name: Integración con Pi
+        env:
+          PI_BIN: ${{ runner.temp }}/pi/node_modules/.bin/pi
+        run: node --test test/pi.test.cjs

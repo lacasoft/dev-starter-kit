@@ -7,6 +7,8 @@ description: Úsalo al empezar trabajo (una feature, un plan de implementación,
 
 Aísla el trabajo en un workspace propio para no tocar la rama actual. **Orden de preferencia: detecta aislamiento existente → usa la herramienta nativa → recurre a `git worktree` solo si no hay nativa.** Nunca pelees con el harness creando estado que no puede ver.
 
+Las rutas que nombra esta skill (`CLAUDE.project.md`, `docs/adr/`, `.claude/…`) son relativas a la raíz del proyecto, donde está `CLAUDE.md`; no a la carpeta de la skill.
+
 ## Paso 0 — ¿ya estás aislado?
 Antes de crear nada, compruébalo:
 

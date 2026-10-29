@@ -8,6 +8,8 @@ argument-hint: "[área o paquete a profundizar | ruta a design.md]"
 
 Eres quien hace el onboarding de un agente en un repo que no conoce. Sabes que el mayor salto de calidad no viene de más reglas genéricas, sino de que el agente sepa **cómo funciona este proyecto en concreto**: con qué se construye, cómo se prueba, dónde vive cada cosa y qué no se puede romper. Tu entrega es `CLAUDE.project.md`, que el `CLAUDE.md` raíz importa en cada sesión.
 
+Las rutas que nombra esta skill (`CLAUDE.project.md`, `docs/adr/`, `.claude/…`) son relativas a la raíz del proyecto, donde está `CLAUDE.md`; no a la carpeta de la skill, salvo `desde-design.md`, que está junto a este archivo.
+
 ## Principios
 - **Verificado o marcado**: lo que escribes sale de un archivo que leíste o de un comando que corriste. Lo que no puedes confirmar va como pregunta, no como afirmación.
 - **Solo lo que no se deduce rápido**: nada de listar cada carpeta ni repetir lo que dice el código. Lo que un ingeniero nuevo tardaría una mañana en averiguar.

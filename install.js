@@ -12,6 +12,8 @@
  *  6. (opcional) Instala agentes/skills externos curados (claude-code-templates) y deps npm por stack.
  *  7. Indica los plugins de Claude Code a añadir (shared + por-stack).
  *  8. Imprime un resumen del proyecto (stack, tests, calidad, entrega, git, entorno) y sus huecos.
+ *  9. Con --pi, añade la capa para Pi Agent (shared/.pi → .pi) y asegura que .pi/settings.json
+ *     cargue las skills de .claude/ (sin copiarlas).
  *
  * Flags:
  *   --stack <cat/stack>[:dir][,…]  fuerza el stack (si no, autodetecta). En monorepo, uno por carpeta:
@@ -19,6 +21,7 @@
  *   --yes, -y            no interactivo: usa el default de cada confirmación
  *   --all                acepta TODO (externos + deps). Combina con --yes para desatendido total
  *   --no-external        no instala componentes externos (claude-code-templates / npm)
+ *   --pi                 añade la capa para Pi Agent; --update la recuerda (manifiesto)
  *   --update, --force    sobrescribe la capa base con la última versión (conserva memoria y CLAUDE.project.md)
  *   --dry-run            simula: imprime qué haría, no escribe ni ejecuta
  *   --help, -h           muestra esta ayuda
@@ -38,6 +41,7 @@ const FLAGS = {
   // Retirado junto con Ruflo (claude-flow). Se acepta para no romper scripts, pero no hace nada.
   noFlowLegacy: argv.includes("--no-flow"),
   noExternal: argv.includes("--no-external"),
+  pi: argv.includes("--pi"),
   update: argv.includes("--update") || argv.includes("--force"),
   dryRun: argv.includes("--dry-run"),
   help: argv.includes("--help") || argv.includes("-h"),
@@ -60,6 +64,8 @@ Uso:  node install.js [opciones]
   --yes, -y            no interactivo: usa el default de cada confirmación (conservador)
   --all                acepta TODO (externos + deps). Usa "--yes --all" para desatendido total
   --no-external        no instala componentes externos
+  --pi                 añade la capa para Pi Agent (.pi/): usa las mismas skills y expande los
+                       imports de CLAUDE.md. --update la recuerda.
   --update, --force    actualiza la capa base sin perder nada tuyo: solo reescribe los archivos
                        que siguen igual que como los dejó el kit (según .claude/.kit-manifest.json).
                        Lo que hayas editado se conserva y la versión nueva queda como *.kit-new.
@@ -654,15 +660,40 @@ const GITIGNORE = [".claude/memory/", ".claude/agent-memory-local/", ".claude/lo
 // captura. Git aplica la última regla que casa, así que las negaciones van SIEMPRE después.
 const GITIGNORE_KEEP = ["!.env.example", "!.env.sample", "!.env.template"];
 
+// ---------- .pi/settings.json (con --pi) ----------
+// Es de la persona (tema, modelo, paquetes…): el kit solo se asegura de que Pi cargue las skills
+// de .claude/ y el comando /status (de .claude/commands/kit/status.md), sin copiarlos. /swarm no
+// se carga: depende de los subagentes de Claude Code. Las rutas de ese archivo son relativas a .pi/.
+const PI_RESOURCES = { skills: ["../.claude/skills"], prompts: ["../.claude/commands/kit/status.md"] };
+function mergePiSettings() {
+  const p = path.join(CWD, ".pi", "settings.json");
+  const exists = fs.existsSync(p);
+  const cur = exists ? readJSON(p) : {};
+  const keys = Object.keys(PI_RESOURCES);
+  if (!cur || typeof cur !== "object" || Array.isArray(cur) || keys.some((k) => cur[k] !== undefined && !Array.isArray(cur[k]))) {
+    console.log(`  ⚠️  .pi/settings.json no tiene el formato esperado: no se toca. Agrega a mano ${keys.map((k) => `"${k}": ${JSON.stringify(PI_RESOURCES[k])}`).join(" y ")}.`);
+    return;
+  }
+  const next = { ...cur };
+  for (const k of keys) next[k] = [...(cur[k] || []), ...PI_RESOURCES[k].filter((r) => !(cur[k] || []).includes(r))];
+  if (JSON.stringify(next) === JSON.stringify(cur)) return;
+  const dry = FLAGS.dryRun ? "(dry-run) " : "";
+  if (!FLAGS.dryRun) {
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, JSON.stringify(next, null, 2) + "\n");
+  }
+  console.log(`  ${dry}${exists ? "🔀" : "➕"} .pi/settings.json (skills y /status de .claude/)`);
+}
+
 // Asegura que .gitignore cubra memoria/runtime/backups/secretos (idempotente).
-function ensureGitignore() {
+function ensureGitignore(withPi = false) {
   const gi = path.join(CWD, ".gitignore");
   const cur = fs.existsSync(gi) ? fs.readFileSync(gi, "utf8") : "";
   const have = new Set(cur.split(/\r?\n/).map((l) => l.trim()));
   // `npm init` no crea .gitignore y el propio kit instala devDeps: sin esto, el primer
   // `git add .` mete node_modules/ al repo.
   const node = fs.existsSync(path.join(CWD, "package.json")) && !have.has("node_modules") && !have.has("/node_modules") ? ["node_modules/"] : [];
-  const add = [...node, ...GITIGNORE].filter((n) => !have.has(n));
+  const add = [...node, ...GITIGNORE, ...(withPi ? [".pi.backup.*"] : [])].filter((n) => !have.has(n));
   // Si acabamos de añadir ".env.*", reemitimos las negaciones aunque ya existan más arriba:
   // colocadas antes del patrón no harían nada, y la línea duplicada es inocua.
   const keep = GITIGNORE_KEEP.filter((n) => !have.has(n) || add.includes(".env.*"));
@@ -1163,11 +1194,18 @@ async function main() {
     }
     stacks = r.stacks;
   }
+  // --pi se recuerda en el manifiesto: un --update posterior no la pierde.
+  const withPi = FLAGS.pi || Boolean(prevManifest && prevManifest.pi);
+  const piDir = path.join(CWD, ".pi");
+
   // backup
-  if (fs.existsSync(claudeDir) && !FLAGS.dryRun) {
-    const bk = `.claude.backup.${Date.now()}`;
-    fs.cpSync(claudeDir, path.join(CWD, bk), { recursive: true });
-    console.log(`\n📦 Backup: ${bk}`);
+  const stamp = Date.now();
+  for (const dir of withPi ? [claudeDir, piDir] : [claudeDir]) {
+    if (fs.existsSync(dir) && !FLAGS.dryRun) {
+      const bk = `${path.basename(dir)}.backup.${stamp}`;
+      fs.cpSync(dir, path.join(CWD, bk), { recursive: true });
+      console.log(`\n📦 Backup: ${bk}`);
+    }
   }
 
   if (FLAGS.noFlowLegacy) {
@@ -1196,15 +1234,30 @@ async function main() {
   for (const r of stackRules(stacks)) applyFile(r.rel, r.buf, path.join(claudeDir, r.rel), layer);
   const remembered = retireFiles(layer, claudeDir);
   reportLayer(layer);
+
+  // 1b) capa de Pi Agent: mismas reglas de manifiesto, en su propia sección.
+  const piLayer = {
+    prev: (prevManifest && prevManifest.pi && prevManifest.pi.files) || {},
+    next: {},
+    added: 0, updated: 0, same: 0, kept: 0, userOwned: 0, merged: false, conflicts: [], retiredSettings: [],
+    retired: 0, retiredKept: 0,
+  };
+  if (withPi) {
+    console.log("\n🧩 Capa de Pi Agent (shared/.pi)...");
+    applyLayer(path.join(KIT, "shared", ".pi"), piDir, piLayer);
+    mergePiSettings();
+    reportLayer(piLayer);
+  }
   if (!FLAGS.dryRun) {
-    fs.writeFileSync(manifestPath, JSON.stringify({ version: VERSION, stacks, files: { ...remembered, ...layer.next } }, null, 2) + "\n");
+    const m = { version: VERSION, stacks, files: { ...remembered, ...layer.next }, ...(withPi ? { pi: { files: piLayer.next } } : {}) };
+    fs.writeFileSync(manifestPath, JSON.stringify(m, null, 2) + "\n");
   }
 
   // 2) Definición del proyecto + CLAUDE.md raíz (añade/actualiza nuestro bloque; respeta lo demás)
   console.log("\n📝 Definición del proyecto y CLAUDE.md...");
   const hasProject = await scaffoldProject();
   composeClaudeMd(hasProject);
-  ensureGitignore();
+  ensureGitignore(withPi);
   await scaffoldEnvExample();
 
   // 3) restos de Ruflo (solo lectura)
@@ -1285,6 +1338,15 @@ async function main() {
   console.log(`   • CLAUDE.md compuesto (proyecto + baseline) y reglas del stack en .claude/rules/kit/: ${describeStacks(stacks)}`);
   console.log("   • Memoria: la nativa de Claude Code + la de agente en .claude/agent-memory/ (versionada); .gitignore actualizado");
   console.log("   • Siguiente paso: abre Claude Code y corre /project-context para rellenar CLAUDE.project.md");
+  if (withPi) {
+    console.log("\n🧩 Pi Agent (capa .pi/):");
+    console.log("   • Abre pi en el proyecto y acepta su confianza: sin ella Pi no carga .pi/ (ni las skills, ni los");
+    console.log('     imports de CLAUDE.md, ni las reglas). Con la capa activa verás "🧰 dev-kit" abajo.');
+    console.log("   • Las skills se invocan como /skill:<nombre> (/skill:project-context, /skill:tdd…) y el estado del kit con /status.");
+    console.log("   • En Pi no hay subagentes: /swarm y los agentes de .claude/agents/ son solo de Claude Code.");
+    console.log("   • Pi envía telemetría anónima de instalación por defecto: PI_TELEMETRY=0 la apaga.");
+    console.log("   • Instala ripgrep y fd con el gestor de paquetes de tu sistema: si faltan, Pi descarga la última versión sin fijarla.");
+  }
 
   try {
     summarizeProject(stacks);

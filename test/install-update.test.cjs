@@ -442,3 +442,73 @@ test("--update nunca toca la memoria ni CLAUDE.project.md", () => {
   assert.equal(fs.readFileSync(path.join(dir, "CLAUDE.project.md"), "utf8"), "# contexto real del proyecto");
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+// ---- capa de Pi Agent (--pi) ----
+const manifiestoDe = (dir) => leerJSON(path.join(dir, ".claude", ".kit-manifest.json"));
+const PI_SETTINGS = { skills: ["../.claude/skills"], prompts: ["../.claude/commands/kit/status.md"] };
+
+test("sin --pi no crea .pi/ ni lo registra en el manifiesto", () => {
+  const dir = proyecto();
+  assert.ok(!fs.existsSync(path.join(dir, ".pi")));
+  assert.equal(manifiestoDe(dir).pi, undefined);
+  assert.doesNotMatch(fs.readFileSync(path.join(dir, ".gitignore"), "utf8"), /\.pi\.backup/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("--pi instala la extensión, los helpers que usa y .pi/settings.json con skills y /status", () => {
+  const dir = proyecto();
+  const out = instalar(dir, ["--pi"]);
+  assert.ok(fs.existsSync(path.join(dir, ".pi/extensions/dev-starter-kit.ts")));
+  for (const h of ["claude-imports.cjs", "claude-rules.cjs"]) assert.ok(fs.existsSync(path.join(dir, ".claude/helpers", h)), h);
+  assert.deepEqual(leerJSON(path.join(dir, ".pi/settings.json")), PI_SETTINGS);
+  assert.ok(manifiestoDe(dir).pi.files["extensions/dev-starter-kit.ts"]);
+  assert.match(out, /PI_TELEMETRY=0/);
+  assert.match(fs.readFileSync(path.join(dir, ".gitignore"), "utf8"), /^\.pi\.backup\.\*$/m);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("--update recuerda --pi y respeta la extensión editada", () => {
+  const dir = proyecto();
+  instalar(dir, ["--pi"]);
+  fs.rmSync(path.join(dir, ".pi/settings.json"));
+  instalar(dir, ["--update"]);
+  assert.ok(fs.existsSync(path.join(dir, ".pi/settings.json")), "sin --pi, --update vuelve a asegurar la capa");
+  const ext = path.join(dir, ".pi/extensions/dev-starter-kit.ts");
+  fs.appendFileSync(ext, "\n// mi ajuste\n");
+  instalar(dir, ["--update"]);
+  assert.match(fs.readFileSync(ext, "utf8"), /mi ajuste/);
+  assert.ok(manifiestoDe(dir).pi);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("--pi fusiona un .pi/settings.json existente sin duplicar", () => {
+  const dir = proyecto();
+  fs.mkdirSync(path.join(dir, ".pi"));
+  fs.writeFileSync(path.join(dir, ".pi/settings.json"), JSON.stringify({ theme: "dark", skills: ["../mis-skills"] }));
+  instalar(dir, ["--pi"]);
+  instalar(dir, ["--pi", "--update"]);
+  assert.deepEqual(leerJSON(path.join(dir, ".pi/settings.json")), {
+    theme: "dark",
+    skills: ["../mis-skills", "../.claude/skills"],
+    prompts: ["../.claude/commands/kit/status.md"],
+  });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("--pi no toca un .pi/settings.json que no es un objeto JSON", () => {
+  const dir = proyecto();
+  fs.mkdirSync(path.join(dir, ".pi"));
+  fs.writeFileSync(path.join(dir, ".pi/settings.json"), "{ esto no es json");
+  const out = instalar(dir, ["--pi"]);
+  assert.equal(fs.readFileSync(path.join(dir, ".pi/settings.json"), "utf8"), "{ esto no es json");
+  assert.match(out, /no se toca/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("--dry-run --pi no escribe nada", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-update-"));
+  fs.writeFileSync(path.join(dir, "package.json"), '{"name":"x","dependencies":{"@nestjs/core":"^10"}}');
+  instalar(dir, ["--dry-run", "--pi"]);
+  assert.deepEqual(fs.readdirSync(dir), ["package.json"]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

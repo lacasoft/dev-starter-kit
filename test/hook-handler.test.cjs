@@ -128,7 +128,8 @@ test(".env emite additionalContext sin bloquear", () => {
 // ---- session-start: avisos accionables al abrir sesión ----
 const fs = require("node:fs");
 const os = require("node:os");
-function sessionStart(files, payload = { source: "startup" }) {
+// `env` permite simular que corre dentro de Pi (PI_CODING_AGENT=true); por defecto, Claude Code.
+function sessionStart(files, payload = { source: "startup" }, env = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-session-"));
   for (const [nombre, contenido] of Object.entries(files)) {
     fs.mkdirSync(path.dirname(path.join(dir, nombre)), { recursive: true });
@@ -137,7 +138,7 @@ function sessionStart(files, payload = { source: "startup" }) {
   const r = spawnSync("node", [HH, "session-start"], {
     input: JSON.stringify(payload),
     encoding: "utf8",
-    env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
+    env: { ...(({ PI_CODING_AGENT, ...base }) => base)(process.env), CLAUDE_PROJECT_DIR: dir, ...env },
   });
   fs.rmSync(dir, { recursive: true, force: true });
   return { code: r.status, out: r.stdout || "" };
@@ -153,6 +154,8 @@ test("session-start calla si CLAUDE.project.md está relleno", () =>
   assert.equal(sessionStart({ "CLAUDE.project.md": RELLENO }).out, ""));
 test("session-start no repite avisos tras una compactación", () =>
   assert.equal(sessionStart({}, { source: "compact" }).out, ""));
+test("session-start dentro de Pi sugiere /skill:project-context", () =>
+  assert.match(sessionStart({}, { source: "startup" }, { PI_CODING_AGENT: "true" }).out, /\/skill:project-context/));
 test("session-start avisa de *.kit-new pendientes", () =>
   assert.match(sessionStart({ "CLAUDE.project.md": RELLENO, ".claude/agents/coder.md.kit-new": "x" }).out, /kit-new/));
 
