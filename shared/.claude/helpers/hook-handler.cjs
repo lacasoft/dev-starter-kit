@@ -130,6 +130,7 @@ const BASH_DENY = [
   [/\b(?:cat|cp|scp|tar|curl|base64)\b[^\n;]*(?:~|\$HOME)\/\.(?:ssh|aws|gnupg)\b/, "lee o copia credenciales del usuario (~/.ssh, ~/.aws, ~/.gnupg)"],
   [/\bgit\s+(?:commit|push)\b[^\n;]*--no-verify\b/, "salta los hooks de calidad y el escáner de secretos (--no-verify)"],
   [/^(?!\s*node\s+\.claude\/helpers\/loop\.cjs\b).*\.claude\/loop\/state\.json/, "toca el estado del ciclo (.claude/loop/state.json), que solo escribe loop.cjs: el verificador no se negocia; usa loop.cjs status o stop"],
+  [/\bloop\.cjs\s+(?:approve|reject)\b/, "aprueba o rechaza el cierre del ciclo: lo decide la persona en su terminal, no el agente que hizo el trabajo"],
 ];
 
 // Archivos de entorno reales (.env, .env.local, .envrc…): los ejemplos (.example, .sample,
