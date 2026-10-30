@@ -4,6 +4,25 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](htt
 
 ## [No publicado]
 
+## [3.4.0] - 2026-10-30
+
+Completa el soporte para [Pi Agent](https://github.com/earendil-works/pi): reglas por carpeta en monorepos y `/loop-task`. Para Claude Code no cambia nada.
+
+### Notas de actualización
+- `npx -y github:lacasoft/dev-starter-kit#v3.4.0 --update --yes`. Si ya instalaste con `--pi`, la extensión de Pi se actualiza sola, salvo que la hayas editado: en ese caso queda la versión nueva como `*.kit-new`.
+
+### Added
+- **Reglas por carpeta en Pi (monorepos).** Las reglas de `.claude/rules/` con `paths:` (un stack por carpeta) entran como en Claude Code: la primera vez que el agente lee o edita un archivo de su carpeta, la extensión anexa la regla al resultado, sin mezclar stacks. Vuelven a entrar después de compactar. `claude-rules.cjs` gana `appliesTo` (globs relativos a la raíz, incluidas las carpetas con corchetes que escapa el instalador).
+- **`/loop-task` en Pi.** La extensión corre la puerta del ciclo al cerrar cada turno, como el hook `Stop` de Claude: mismo verificador, mismo tope, mismas protecciones. Pi no tiene subagentes, así que el cierre lo aprueba la persona:
+  - Con el verificador en verde, el agente repasa el diff y escribe el *Resumen para la persona*.
+  - Pi pregunta si se aprueba el cierre; si no, pide qué falta y el ciclo sigue.
+  - Sin interfaz (`pi -p`), el ciclo queda `awaiting-approval` hasta que la persona corra `loop.cjs approve` o `reject --reason "…"` en su terminal.
+  - Es una garantía más fuerte que la de Claude: allí la revisión del `reviewer` es una instrucción, y aquí es una confirmación explícita.
+- `loop.cjs`: `gate --approval`, `approve` y `reject`. Sin `--approval`, la puerta de Claude se comporta igual que antes; sus pruebas no cambiaron.
+
+### Security
+- `pre-bash` niega que el agente corra `loop.cjs approve` o `reject`: aprobar el cierre lo decide la persona, no quien hizo el trabajo.
+
 ## [3.3.0] - 2026-10-30
 
 Soporte opcional para [Pi Agent](https://github.com/earendil-works/pi) ≥ 1.4.0: contexto y guardrails. Para Claude Code no cambia nada.

@@ -34,6 +34,8 @@ export default function (pi: ExtensionAPI) {
     }
     const last = context.messages[context.messages.length - 1];
     if (last?.role === "toolResult") log.push({ tool: last.toolName, error: Boolean(last.isError), text: texto(last) });
+    // Un mensaje de la extensión (p. ej. la puerta del ciclo) llega como mensaje de usuario.
+    else if (i > 0 && last?.role === "user") log.push({ tool: "mensaje", error: false, text: texto(last) });
     fs.writeFileSync(path.join(out, "log.json"), JSON.stringify(log));
     return fauxAssistantMessage(step.tool ? fauxToolCall(step.tool, step.args ?? {}) : fauxText(step.text ?? "ok"));
   }));
@@ -88,10 +90,25 @@ test("/status expande el comando kit/status de .claude/commands", { skip }, () =
   limpiar(res);
 });
 
-test("en monorepo, las reglas con paths: no entran siempre (todavía no se cargan por carpeta)", { skip }, () => {
-  const res = correrPi({ install: ["--stack", "backend/nestjs:apps/api,frontend/nextjs:apps/web", "--pi"] });
-  assert.doesNotMatch(res.prompt, /# Stack: NestJS|# Stack: Next\.js/);
+test("en monorepo, cada regla entra al tocar un archivo de su carpeta, una sola vez", { skip }, () => {
+  const api = { tool: "read", args: { path: "apps/api/src/users.service.ts" } };
+  const res = correrPi({
+    install: ["--stack", "backend/nestjs:apps/api,frontend/nextjs:apps/web", "--pi"],
+    steps: [api, { tool: "read", args: { path: "apps/web/app/page.tsx" } }, api, { text: "ok" }],
+    antes: (dir) => {
+      for (const [f, c] of [["apps/api/src/users.service.ts", "export class UsersService {}\n"], ["apps/web/app/page.tsx", "export default function Page() { return null; }\n"]]) {
+        fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
+        fs.writeFileSync(path.join(dir, f), c);
+      }
+    },
+  });
+  assert.doesNotMatch(res.prompt, /# Stack: NestJS|# Stack: Next\.js/, "no entran siempre");
   assert.match(res.prompt, /## 3\. Coordinación de agentes/);
+  assert.match(res.log[0].text, /# Stack: NestJS/);
+  assert.doesNotMatch(res.log[0].text, /Next\.js/, "sin contaminación entre stacks");
+  assert.match(res.log[1].text, /# Stack: Next\.js/);
+  assert.doesNotMatch(res.log[1].text, /NestJS/);
+  assert.doesNotMatch(res.log[2].text, /Regla del proyecto/, "la regla ya estaba en el contexto");
   limpiar(res);
 });
 
@@ -141,5 +158,47 @@ test("los guardrails del kit funcionan en Pi: hook-handler, settings.json y herr
   assert.ok(!fs.existsSync(path.join(res.dir, "secreto.ts")));
   assert.equal(fs.readFileSync(path.join(res.dir, "src", "app.ts"), "utf8"), "export const x = 1;\n");
   fs.rmSync(home, { recursive: true, force: true });
+  limpiar(res);
+});
+
+// ---- /loop-task en Pi: la puerta corre al cerrar cada turno ----
+function cicloEnPi(steps, maxTurns = 5) {
+  return correrPi({
+    steps,
+    antes: (dir) => {
+      const git = (...a) => spawnSync("git", a, { cwd: dir });
+      fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "x", scripts: { test: "node check.js" }, dependencies: { "@nestjs/core": "^10" } }));
+      fs.writeFileSync(path.join(dir, "check.js"), "process.exit(require('fs').existsSync('ok.txt') ? 0 : 1);\n");
+      git("init", "-q", "-b", "master");
+      git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "--allow-empty", "-qm", "init");
+      git("switch", "-q", "-c", "feat/ciclo");
+      const r = spawnSync("node", [".claude/helpers/loop.cjs", "start", "--check", "npm test", "--max-turns", String(maxTurns), "--objective", "crear ok.txt"], { cwd: dir, encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: dir } });
+      assert.equal(r.status, 0, r.stderr);
+    },
+  });
+}
+const estadoCiclo = (res) => JSON.parse(fs.readFileSync(path.join(res.dir, ".claude", "loop", "state.json"), "utf8"));
+
+test("loop-task en Pi: con el verificador en rojo sigue trabajando hasta el tope", { skip }, () => {
+  const res = cicloEnPi([{ text: "listo" }, { text: "listo otra vez" }, { text: "fin" }], 2);
+  assert.ok(res.log.some((l) => l.tool === "mensaje" && /turno 1\/2: el verificador falla/.test(l.text)), "el error del verificador llega al modelo");
+  assert.equal(estadoCiclo(res).status, "exhausted");
+  limpiar(res);
+});
+
+test("loop-task en Pi: en verde pide el resumen y, sin interfaz, espera la aprobación de la persona", { skip }, () => {
+  const res = cicloEnPi([
+    { tool: "write", args: { path: "ok.txt", content: "" } },
+    { text: "listo" },
+    { tool: "bash", args: { command: "printf '\\n## Resumen para la persona\\n- creé ok.txt\\n' >> .loop/PROGRESS.md" } },
+    { text: "listo" },
+    { text: "fin" },
+  ]);
+  assert.ok(res.log.some((l) => l.tool === "mensaje" && /la persona decide si aprueba el cierre/.test(l.text)), "pide el resumen sin subagente");
+  const s = estadoCiclo(res);
+  assert.equal(s.status, "awaiting-approval", "no se cierra solo");
+  const aprobar = spawnSync("node", [".claude/helpers/loop.cjs", "approve"], { cwd: res.dir, encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: res.dir } });
+  assert.equal(aprobar.status, 0, aprobar.stderr);
+  assert.equal(estadoCiclo(res).status, "passed");
   limpiar(res);
 });

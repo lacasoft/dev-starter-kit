@@ -6,11 +6,18 @@
  *   node .claude/helpers/loop.cjs status
  *   node .claude/helpers/loop.cjs stop
  *   node .claude/helpers/loop.cjs gate        ← hook Stop (lo llama Claude Code, no la persona)
+ *   node .claude/helpers/loop.cjs gate --approval   ← la puerta en Pi Agent (la llama la extensión del kit)
+ *   node .claude/helpers/loop.cjs approve | reject [--reason "…"]   ← la persona, en su terminal
  *
  * La idea: Claude no decide cuándo terminó. Al final de cada turno, el hook Stop corre el
  * verificador (tests, lint, build). Si falla, Claude sigue con el error a la vista; si pasa,
  * se exige una revisión independiente antes de cerrar; si se agota el tope de turnos, para y
  * deja el informe.
+ *
+ * Con --approval (Pi Agent, que no tiene subagentes) la revisión independiente es de la persona:
+ * con el verificador en verde y el resumen escrito, el ciclo queda "awaiting-approval" y la
+ * puerta lo dice en { approval: {…} }. Lo cierra `approve` o lo devuelve al trabajo `reject`;
+ * el agente no puede correrlos (el hook pre-bash se lo niega).
  *
  * Dos lugares, a propósito:
  *  - .claude/loop/state.json — el contrato (verificador, tope, turnos). Solo lo escribe este helper;
@@ -155,7 +162,7 @@ function status() {
 
 function stop() {
   const s = read();
-  if (!s || !["active", "reviewing"].includes(s.status)) return console.log("No hay ciclo activo.");
+  if (!s || !["active", "reviewing", "awaiting-approval"].includes(s.status)) return console.log("No hay ciclo activo.");
   write({ ...s, status: "stopped", finishedAt: new Date().toISOString() });
   appendProgress(`\n**Detenido a mano en el turno ${s.turns}.**\n`);
   console.log("⏹️  Ciclo detenido.");
@@ -165,12 +172,47 @@ function block(reason) {
   process.stdout.write(JSON.stringify({ decision: "block", reason }));
 }
 
+// La sección "## Resumen para la persona" de PROGRESS.md, o "" si todavía no está. Termina en el
+// siguiente título o en lo que añade este helper (las líneas "- Turno N · …" y las de "**…**").
+function summary() {
+  let progress = "";
+  try {
+    progress = fs.readFileSync(PROGRESS, "utf8");
+  } catch (_) {}
+  const m = progress.match(/^## Resumen para la persona[^\n]*\n?([\s\S]*?)(?=^## |^\*\*|^- Turno \d+ · |(?![\s\S]))/m);
+  return m ? m[1].trim() || "(vacío)" : "";
+}
+
+function askApproval(s) {
+  process.stdout.write(JSON.stringify({ approval: { objective: s.objective, turns: s.turns, summary: summary() } }));
+}
+
+// La persona aprueba el cierre (o lo rechaza con un motivo) desde su terminal o desde la extensión.
+function approve() {
+  const s = read();
+  if (!s || s.status !== "awaiting-approval") return fail("No hay un ciclo esperando aprobación.");
+  write({ ...s, status: "passed", finishedAt: new Date().toISOString() });
+  appendProgress(`\n**Ciclo cerrado en ${s.turns} turnos: verificador en verde y cierre aprobado por la persona.**\n`);
+  console.log(`✅ Ciclo "${s.objective}" cerrado. Revisa el diff y .loop/PROGRESS.md antes de hacer merge.`);
+}
+function reject() {
+  const s = read();
+  if (!s || s.status !== "awaiting-approval") return fail("No hay un ciclo esperando aprobación.");
+  const reason = arg("reason") || "sin motivo";
+  write({ ...s, status: "active" });
+  appendProgress(`\n**La persona no aprobó el cierre (turno ${s.turns}):** ${reason}\n`);
+  console.log(`↩️  Cierre rechazado: ${reason}. El ciclo sigue activo.`);
+}
+
 // Hook Stop. Sin ciclo activo no hace nada (y no cuesta nada).
 function gate() {
   try {
     fs.readFileSync(0, "utf8");
   } catch (_) {}
+  const approval = flag("approval");
   const s = read();
+  // Esperando a la persona: no se trabaja ni se vuelve a correr el verificador; se repite la petición.
+  if (s && s.status === "awaiting-approval") return approval ? askApproval(s) : undefined;
   if (!s || !["active", "reviewing"].includes(s.status)) return;
   const turns = s.turns + 1;
   const changed = Object.entries(s.scripts || {}).filter(([k, v]) => scriptsFingerprint(s.check)[k] !== v).map(([k]) => k);
@@ -209,6 +251,18 @@ function gate() {
     return;
   }
 
+  if (s.status === "active" && approval) {
+    // En verde, en Pi: sin subagentes, quien revisa es la persona. El agente deja el resumen.
+    write({ ...s, turns, status: "reviewing" });
+    block(
+      `Ciclo "${s.objective}": el verificador pasa (turno ${turns}). Último paso antes de cerrar:\n` +
+        "1. Repasa el diff completo del ciclo (git diff contra el punto de partida) y corrige lo que encuentres.\n" +
+        "2. Añade al final de .loop/PROGRESS.md la sección \"## Resumen para la persona\": qué cambió, por qué, y qué debería revisar ella con atención.\n" +
+        "No amplíes el alcance. Al terminar, el verificador corre otra vez y la persona decide si aprueba el cierre: quien hizo el trabajo no lo aprueba."
+    );
+    return;
+  }
+
   if (s.status === "active") {
     // En verde. Antes de cerrar, quien revisa no puede ser quien hizo el trabajo.
     write({ ...s, turns, status: "reviewing" });
@@ -221,16 +275,19 @@ function gate() {
     return;
   }
 
-  let progress = "";
-  try {
-    progress = fs.readFileSync(PROGRESS, "utf8");
-  } catch (_) {}
-  if (!/^## Resumen para la persona/m.test(progress)) {
+  if (!summary()) {
     write({ ...s, turns });
     block(
-      `Ciclo "${s.objective}": falta el cierre. Lanza el agente \`reviewer\` sobre el diff si no lo hiciste, y añade a .loop/PROGRESS.md la sección "## Resumen para la persona" (qué cambió, por qué y qué revisar con atención).`
+      approval
+        ? `Ciclo "${s.objective}": falta el cierre. Añade a .loop/PROGRESS.md la sección "## Resumen para la persona" (qué cambió, por qué y qué revisar con atención); después, la persona decide.`
+        : `Ciclo "${s.objective}": falta el cierre. Lanza el agente \`reviewer\` sobre el diff si no lo hiciste, y añade a .loop/PROGRESS.md la sección "## Resumen para la persona" (qué cambió, por qué y qué revisar con atención).`
     );
     return;
+  }
+  if (approval) {
+    write({ ...s, turns, status: "awaiting-approval" });
+    appendProgress(`\n**Verificador en verde y resumen listo (turno ${turns}): esperando la aprobación de la persona.**\n`);
+    return askApproval({ ...s, turns });
   }
   write({ ...s, turns, status: "passed", finishedAt: stamp });
   appendProgress(`\n**Ciclo cerrado en ${turns} turnos: verificador en verde y revisión hecha.**\n`);
@@ -250,7 +307,9 @@ if (require.main === module) {
   else if (action === "status") status();
   else if (action === "stop") stop();
   else if (action === "gate") gate();
-  else fail("Uso: loop.cjs start --check \"<comando>\" [--max-turns N] [--objective \"…\"] | status | stop | gate");
+  else if (action === "approve") approve();
+  else if (action === "reject") reject();
+  else fail("Uso: loop.cjs start --check \"<comando>\" [--max-turns N] [--objective \"…\"] | status | stop | gate [--approval] | approve | reject [--reason \"…\"]");
 }
 
 module.exports = { validateCheck };

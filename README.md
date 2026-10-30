@@ -35,7 +35,7 @@ Dentro de **cualquier proyecto** (nuevo o heredado), sin clonar nada:
 ```bash
 npx -y github:lacasoft/dev-starter-kit              # interactivo
 npx -y github:lacasoft/dev-starter-kit --yes --all  # desatendido (todo)
-npx -y github:lacasoft/dev-starter-kit#v3.3.0       # fijar una versión (recomendado)
+npx -y github:lacasoft/dev-starter-kit#v3.4.0       # fijar una versión (recomendado)
 ```
 
 Toma siempre la última versión de `master` (o el tag indicado). Repo **público (MIT)**.
@@ -257,7 +257,7 @@ git switch -c feat/migracion-billing        # nunca en la rama principal
 | **Solo comandos de verificación** | El verificador solo admite test, lint, typecheck o build del proyecto encadenados con `&&`: el hook no ejecuta shell arbitrario. |
 | **No se puede hacer trampa** | El estado del ciclo no se edita (hooks `pre-edit` y `pre-bash`), y si cambia el script de `package.json` que usa el verificador, la puerta lo rechaza. |
 | **Línea base** | Si el verificador ya pasa antes de empezar, el ciclo no arranca: no mide lo que quieres lograr. |
-| **Quien hace no aprueba** | En verde, el ciclo exige pasar el agente `reviewer` por el diff y un *Resumen para la persona* antes de cerrar. |
+| **Quien hace no aprueba** | En verde, el ciclo exige pasar el agente `reviewer` por el diff y un *Resumen para la persona* antes de cerrar. En [Pi](#también-con-pi-agent), sin subagentes, el cierre lo apruebas tú. |
 | **Tope** | 10 turnos por defecto (máximo 50). Al agotarse, se detiene y deja el informe en `.loop/PROGRESS.md`. |
 
 El ciclo no hace commit, push ni merge: el resultado se revisa como cualquier PR. Para finales que
@@ -287,8 +287,8 @@ modelos de varios proveedores, también locales. Con `--pi`, el kit añade una c
 las mismas skills, reglas y helpers: no hay una segunda copia que mantener.
 
 ```bash
-npx -y github:lacasoft/dev-starter-kit#v3.3.0 --pi                    # proyecto nuevo
-npx -y github:lacasoft/dev-starter-kit#v3.3.0 --update --pi --yes     # proyecto que ya usa el kit
+npx -y github:lacasoft/dev-starter-kit#v3.4.0 --pi                    # proyecto nuevo
+npx -y github:lacasoft/dev-starter-kit#v3.4.0 --update --pi --yes     # proyecto que ya usa el kit
 ```
 
 **Requisitos:** Pi 1.4.0 o superior (paquete `@earendil-works/pi-coding-agent`, pide Node.js 22.19+),
@@ -302,12 +302,20 @@ sin fijarla) y un modelo que use herramientas de forma confiable.
 | `CLAUDE.md` con `@imports` y reglas de `.claude/rules/` | La extensión expande los imports y añade las reglas |
 | Hooks `PreToolUse` y permisos de `settings.json` | La extensión aplica las mismas reglas (ver abajo) |
 | `/swarm`, subagentes de `.claude/agents/` | No disponibles: Pi no tiene subagentes nativos |
-| `/loop-task` | Todavía no: su puerta es un hook `Stop` de Claude |
+| `/loop-task` con el `reviewer` al cerrar | `/skill:loop-task`: la extensión corre la puerta al cerrar cada turno y el cierre lo apruebas tú |
 
 **Contexto.** Pi lee `CLAUDE.md`, pero no resuelve sus `@imports` ni carga `.claude/rules/`. La extensión
 expande `CLAUDE.project.md` y la baseline, añade las reglas que Claude carga siempre (las del stack en un
-proyecto de un solo stack y las propias del equipo) y los avisos del inicio de sesión. En un monorepo, las
-reglas por carpeta (`paths:`) todavía no se cargan en Pi.
+proyecto de un solo stack y las propias del equipo) y los avisos del inicio de sesión. En un monorepo,
+cada regla por carpeta (`paths:`) entra como en Claude: la primera vez que el agente lee o edita un
+archivo de su carpeta, y otra vez después de compactar.
+
+**`/loop-task`.** La puerta del ciclo corre al cerrar cada turno, con el mismo verificador y el mismo
+tope que en Claude. La diferencia es el cierre: Pi no tiene subagentes, así que no hay `reviewer`.
+Con el verificador en verde y el resumen escrito, Pi te pregunta si apruebas el cierre; si dices que
+no, le explicas qué falta y el ciclo sigue. Sin interfaz (`pi -p`), el ciclo queda esperando hasta que
+corras `node .claude/helpers/loop.cjs approve` (o `reject --reason "…"`) en tu terminal; el agente no
+puede correrlos.
 
 **Seguridad en Pi.** Pi no tiene sistema de permisos: sin la extensión, ejecuta cualquier herramienta sin
 preguntar. Con `--pi`, antes de cada herramienta, incluidas las llamadas anidadas desde codemode, la extensión aplica:
@@ -418,7 +426,7 @@ recibir la copia vieja. La solución buena es la misma que exige la baseline §6
 versión** — y de paso hace la instalación reproducible:
 
 ```bash
-npx -y github:lacasoft/dev-starter-kit#v3.3.0 --update --yes    # por tag
+npx -y github:lacasoft/dev-starter-kit#v3.4.0 --update --yes    # por tag
 npx -y github:lacasoft/dev-starter-kit#<commit> --update --yes  # por commit (el SHA del tag)
 ```
 
@@ -440,4 +448,4 @@ Repo **público (MIT)** distribuido por `npx github:` → la rama **`master` deb
   (dry-run) y en un monorepo multi-stack, en cada PR, más un job que prueba la capa de Pi dentro de Pi 1.4.0. La lista sale de `scripts/stacks.cjs`, que la deriva de `install.js`.
 - **Cómo añadir** agentes, skills, stacks o externos: ver [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Versionado**: SemVer en `package.json` + `CHANGELOG.md`, con tag anotado por versión
-  (`v3.3.0`). Instala siempre pineando (`#v3.3.0`): es reproducible y evita la cache de npx.
+  (`v3.4.0`). Instala siempre pineando (`#v3.4.0`): es reproducible y evita la cache de npx.

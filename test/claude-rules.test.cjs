@@ -7,7 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const HELPER = path.join(__dirname, "..", "shared", ".claude", "helpers", "claude-rules.cjs");
-const { parse, load } = require(HELPER);
+const { parse, load, appliesTo } = require(HELPER);
 
 function proyecto(files) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-rules-"));
@@ -59,4 +59,19 @@ test("sin .claude/rules/ no hay reglas; como CLI lo dice", () => {
   const r = spawnSync("node", [HELPER], { encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: dir } });
   assert.match(r.stdout, /No hay reglas/);
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("appliesTo: las reglas con paths: solo tocan los archivos de su carpeta", () => {
+  const api = { always: false, paths: ["apps/api/**"] };
+  assert.ok(appliesTo(api, "/repo/apps/api/src/users.service.ts", "/repo"));
+  assert.ok(appliesTo(api, "apps/api/main.ts", "/repo"), "también con rutas relativas");
+  assert.ok(!appliesTo(api, "/repo/apps/web/app/page.tsx", "/repo"));
+  assert.ok(!appliesTo(api, "/otro/apps/api/x.ts", "/repo"), "fuera del proyecto, nunca");
+  assert.ok(appliesTo({ always: true, paths: [] }, "/repo/cualquier.md", "/repo"));
+});
+
+test("appliesTo: globs de extensión y carpetas con caracteres escapados", () => {
+  assert.ok(appliesTo({ always: false, paths: ["**/*.ts"] }, "/r/a/b/c.ts", "/r"));
+  assert.ok(!appliesTo({ always: false, paths: ["**/*.ts"] }, "/r/a/b/c.tsx", "/r"));
+  assert.ok(appliesTo({ always: false, paths: ["apps/\\[web\\]/**"] }, "/r/apps/[web]/x.ts", "/r"));
 });

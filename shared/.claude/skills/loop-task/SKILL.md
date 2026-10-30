@@ -8,7 +8,7 @@ argument-hint: "<objetivo> — verificador: <comando> [— tope: N turnos]"
 
 En vez de pedirle a Claude cada paso, diseñas el **ciclo** que trabaja por ti: un objetivo, un verificador que el agente **no puede falsear**, un tope y una revisión independiente al final. Claude no decide cuándo terminó: lo decide el verificador. El ciclo aporta velocidad, pero no sustituye a la persona: ella revisa el resultado antes de hacer merge.
 
-**Solo en Claude Code por ahora:** la puerta del ciclo es un hook `Stop` de Claude. En Pi Agent esta skill todavía no tiene su puerta: no la uses ahí.
+**En Pi Agent** la puerta es la extensión del kit y corre al cerrar cada turno, igual que el hook `Stop` de Claude. Lo único distinto es el cierre: Pi no tiene subagentes, así que en el paso 5 no hay `reviewer` y quien aprueba es la persona.
 
 Las rutas que nombra esta skill (`CLAUDE.project.md`, `docs/adr/`, `.claude/…`) son relativas a la raíz del proyecto, donde está `CLAUDE.md`; no a la carpeta de la skill.
 
@@ -53,6 +53,15 @@ Con el verificador en verde, quien hizo el trabajo no es quien lo aprueba:
 
 Después, la persona revisa el diff y el resumen antes de hacer merge. Si no entiende un cambio, el ciclo no terminó: es deuda de comprensión.
 
+**En Pi Agent**, el cierre es así:
+1. Repasa tú el diff.
+2. Escribe `## Resumen para la persona`.
+3. Con el verificador en verde, Pi le pregunta a la persona si aprueba el cierre:
+   - **Aprueba:** el ciclo se cierra.
+   - **Rechaza:** dice qué falta y sigues trabajando.
+
+Sin interfaz (`pi -p`), el ciclo queda esperando hasta que la persona corra en su terminal `node .claude/helpers/loop.cjs approve` (o `reject --reason "…"`). Tú no puedes correr esos comandos: el hook te lo niega.
+
 ## Variantes nativas de Claude Code
 - **`/goal <condición>`**: un modelo aparte evalúa la condición tras cada turno. Úsalo cuando el final necesite juicio y no un comando (por ejemplo, "se cumplen los criterios de aceptación de docs/plan.md"). Escríbelo con un estado medible, cómo se demuestra y un límite: `… o detente tras 20 turnos`. Puede convivir con este ciclo: `/goal` decide si hay que seguir y el verificador decide si está bien.
 - **`/loop <intervalo>`**: repite cada cierto tiempo; sirve para esperar algo externo (una CI, un despliegue), no para iterar sobre código.
@@ -65,6 +74,7 @@ Después, la persona revisa el diff y el resumen antes de hacer merge. Si no ent
 | `loop.cjs start --check "…" [--max-turns N] [--objective "…"]` | Arranca el ciclo (verifica la línea base) |
 | `loop.cjs status` | Estado, turno actual y verificador |
 | `loop.cjs stop` | Detiene el ciclo a mano |
+| `loop.cjs approve` / `reject --reason "…"` | Solo la persona, en Pi: aprueba el cierre o devuelve el ciclo al trabajo |
 
 ## Reglas
 - Nunca amplíes el alcance para "aprovechar" el ciclo.

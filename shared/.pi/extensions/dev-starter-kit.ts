@@ -3,15 +3,22 @@
 // cubre eso con los mismos helpers del kit:
 //  - contexto: expande los imports de CLAUDE.md (claude-imports.cjs), añade las reglas de
 //    .claude/rules/ que Claude carga siempre, las que no tienen `paths:` (claude-rules.cjs), y los
-//    avisos del inicio de sesión (hook-handler.cjs session-start);
+//    avisos del inicio de sesión (hook-handler.cjs session-start). Las reglas con `paths:` (un
+//    stack por carpeta en monorepo) se anexan, como en Claude, la primera vez que se lee o edita
+//    un archivo de su carpeta, y otra vez tras compactar;
 //  - guardrails: antes de cada herramienta, las mismas reglas que los hooks PreToolUse de Claude
 //    (hook-handler.cjs) y las reglas deny/ask de .claude/settings.json (claude-permissions.cjs).
 //    Lo que pide aprobación se confirma con la persona y, sin interfaz (pi -p), se bloquea.
-//    Una herramienta que el kit no conoce (MCP, otra extensión) se confirma una vez por sesión.
+//    Una herramienta que el kit no conoce (MCP, otra extensión) se confirma una vez por sesión;
+//  - /loop-task: la puerta del ciclo (loop.cjs gate --approval) corre al cerrar cada turno, como
+//    el hook Stop de Claude. Si el verificador falla, Pi sigue con el error a la vista; con el
+//    verificador en verde y el resumen escrito, el cierre lo aprueba la persona (Pi no tiene
+//    subagentes para la revisión independiente). Sin interfaz, el ciclo queda esperándola.
 // Son guardrails, no aislamiento: Pi corre con los permisos de tu usuario. Para garantías
 // reales, un contenedor o una VM.
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import * as fs from "node:fs";
 import { createRequire } from "node:module";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -23,6 +30,9 @@ const rules = require("../../.claude/helpers/claude-rules.cjs");
 const permissions = require("../../.claude/helpers/claude-permissions.cjs");
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const HOOKS = path.join(ROOT, ".claude", "helpers", "hook-handler.cjs");
+const LOOP = path.join(ROOT, ".claude", "helpers", "loop.cjs");
+const LOOP_STATE = path.join(ROOT, ".claude", "loop", "state.json");
+const ENV = { ...process.env, CLAUDE_PROJECT_DIR: ROOT, PI_CODING_AGENT: "true" };
 const KNOWN = new Set(["read", "bash", "edit", "write", "grep", "find", "ls", "powershell"]);
 
 type Input = Record<string, any>;
@@ -33,9 +43,21 @@ function hook(action: string, toolInput: Input, source = "startup"): { code: num
   const r = spawnSync("node", [HOOKS, action], {
     input: JSON.stringify({ tool_input: toolInput, source }),
     encoding: "utf8",
-    env: { ...process.env, CLAUDE_PROJECT_DIR: ROOT, PI_CODING_AGENT: "true" },
+    env: ENV,
   });
   return { code: r.status, stdout: r.stdout || "", stderr: r.stderr || "" };
+}
+
+// loop.cjs sin bloquear la interfaz: el verificador (tests, build) puede tardar minutos.
+function loop(args: string[]): Promise<string> {
+  return new Promise((resolve) => {
+    const p = spawn("node", [LOOP, ...args], { cwd: ROOT, env: ENV });
+    let out = "";
+    p.stdout.on("data", (d) => (out += d));
+    p.on("close", () => resolve(out.trim()));
+    p.on("error", () => resolve(""));
+    p.stdin.end("{}");
+  });
 }
 
 // Las salidas de PreToolUse en Claude: exit 2 (bloquea con stderr), permissionDecision deny o
@@ -72,6 +94,8 @@ function comoClaude(tool: string, input: Input, cwd: string): [string, Input] | 
 export default function (pi: ExtensionAPI) {
   let imports = new Map<string, { raw: string; expanded: string }>();
   let fijas: { path: string; content: string }[] = [];
+  let porCarpeta: { file: string; rel: string; paths: string[]; body: string }[] = [];
+  let anexadas = new Set<string>();
   let avisos = "";
   let reglas = { deny: [] as string[], ask: [] as string[] };
   let aprobadas = new Set<string>();
@@ -79,7 +103,10 @@ export default function (pi: ExtensionAPI) {
 
   const refrescar = (inicio: boolean) => {
     imports = new Map();
-    fijas = rules.load(ROOT).filter((r: { always: boolean }) => r.always).map((r: { file: string; body: string }) => ({ path: r.file, content: r.body }));
+    const todas = rules.load(ROOT);
+    fijas = todas.filter((r: { always: boolean }) => r.always).map((r: { file: string; body: string }) => ({ path: r.file, content: r.body }));
+    porCarpeta = todas.filter((r: { always: boolean }) => !r.always);
+    anexadas = new Set(); // tras compactar, las reglas por carpeta vuelven a anexarse
     reglas = permissions.load(ROOT);
     // Como el hook de Claude: los avisos solo al iniciar, no tras compactar (ya están en el resumen).
     avisos = inicio ? hook("session-start", {}).stdout.trim() : "";
@@ -136,13 +163,54 @@ export default function (pi: ExtensionAPI) {
   });
 
   // Lo que en Claude hace PostToolUse: el contexto que pidió el hook y el formateo tras editar.
+  // Además, las reglas por carpeta del archivo que se acaba de leer o editar.
   pi.on("tool_result", async (event, ctx) => {
-    const extra = contexto.get(event.toolCallId);
+    const extra: string[] = [];
+    const pedido = contexto.get(event.toolCallId);
     contexto.delete(event.toolCallId);
-    if (!event.isError && (event.toolName === "write" || event.toolName === "edit")) {
-      const claude = comoClaude(event.toolName, event.input as Input, ctx.cwd);
-      if (claude) hook("post-edit", { file_path: claude[1].file_path });
+    if (pedido) extra.push(`ℹ️ ${pedido}`);
+    const archivo = ["read", "write", "edit"].includes(event.toolName) && !event.isError && comoClaude(event.toolName, event.input as Input, ctx.cwd);
+    if (archivo) {
+      if (event.toolName !== "read") hook("post-edit", { file_path: archivo[1].file_path });
+      for (const r of porCarpeta) {
+        if (anexadas.has(r.file) || !rules.appliesTo(r, archivo[1].file_path, ROOT)) continue;
+        anexadas.add(r.file);
+        extra.push(`📏 Regla del proyecto para ${r.paths.join(", ")} (${r.rel}); aplícala a los archivos de esa carpeta:\n\n${r.body.trim()}`);
+      }
     }
-    if (extra) return { content: [...event.content, { type: "text", text: `ℹ️ ${extra}` }] };
+    if (extra.length) return { content: [...event.content, ...extra.map((text) => ({ type: "text" as const, text }))] };
+  });
+
+  // La puerta de /loop-task: el hook Stop de Claude, al cerrar cada turno.
+  pi.on("agent_before_settle", async (event, ctx) => {
+    if (!fs.existsSync(LOOP_STATE)) return;
+    let out: Input | null = null;
+    try {
+      out = JSON.parse((await loop(["gate", "--approval"])) || "null");
+    } catch (_) {
+      return;
+    }
+    if (!out) return;
+    const mensaje = (content: string, seguir: boolean) => ({
+      entries: [...event.entries, { type: "custom_message" as const, customType: "loop-task", content, display: true }],
+      continue: seguir,
+    });
+    if (out.decision === "block") return mensaje(out.reason, true);
+    if (out.systemMessage) {
+      if (ctx.hasUI) ctx.ui.notify(out.systemMessage, "info");
+      return;
+    }
+    if (!out.approval) return;
+    const { objective, turns, summary } = out.approval;
+    if (!ctx.hasUI) {
+      return mensaje(`El ciclo "${objective}" pasó el verificador en ${turns} turnos y espera la aprobación de la persona: en su terminal, node .claude/helpers/loop.cjs approve (o reject --reason "…"). No sigas trabajando en el ciclo.`, false);
+    }
+    if (await ctx.ui.confirm("Cerrar el ciclo", `"${objective}" pasó el verificador en ${turns} turnos.\n\nResumen:\n${summary}\n\nRevisa el diff. ¿Apruebas el cierre?`)) {
+      ctx.ui.notify(await loop(["approve"]), "info");
+      return;
+    }
+    const motivo = ((await ctx.ui.input("¿Qué falta para aprobarlo?", "el caso de error de…")) || "").trim() || "sin motivo";
+    await loop(["reject", "--reason", motivo]);
+    return mensaje(`La persona no aprobó el cierre del ciclo "${objective}": ${motivo}. El ciclo sigue activo: resuélvelo, actualiza el resumen y vuelve a terminar el turno.`, true);
   });
 }

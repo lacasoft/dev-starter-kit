@@ -160,3 +160,85 @@ test("pre-bash DENIEGA tocar el estado del ciclo desde la shell", () =>
   assert.equal(hook("pre-bash", { command: "cat .claude/loop/state.json" }), "deny"));
 test("pre-bash PERMITE el helper del ciclo", () =>
   assert.equal(hook("pre-bash", { command: "node .claude/helpers/loop.cjs status" }), null));
+
+// ---- modo --approval (Pi Agent): la revisión independiente es de la persona ----
+const gatePi = (dir) => {
+  const r = loop(dir, "gate", "--approval");
+  return r.stdout.trim() ? JSON.parse(r.stdout) : null;
+};
+const resumir = (dir) => fs.appendFileSync(path.join(dir, ".loop", "PROGRESS.md"), "\n## Resumen para la persona \n- arreglado el check\n");
+
+test("--approval: en verde pide el resumen sin mencionar al reviewer", () => {
+  const dir = repo();
+  loop(dir, "start", "--check", "npm test");
+  verde(dir);
+  const d = gatePi(dir);
+  assert.equal(d.decision, "block");
+  assert.doesNotMatch(d.reason, /reviewer/);
+  assert.match(d.reason, /la persona decide si aprueba el cierre/);
+  limpiar(dir);
+});
+
+test("--approval: con el resumen, el ciclo espera a la persona y no se cierra solo", () => {
+  const dir = repo();
+  loop(dir, "start", "--check", "npm test");
+  verde(dir);
+  gatePi(dir); // → reviewing
+  resumir(dir);
+  const d = gatePi(dir);
+  assert.equal(d.decision, undefined, "no bloquea: el agente ya terminó");
+  assert.deepEqual(d.approval, { objective: state(dir).objective, turns: 2, summary: "- arreglado el check" });
+  assert.equal(state(dir).status, "awaiting-approval");
+  const otra = gatePi(dir);
+  assert.ok(otra.approval, "mientras espera, repite la petición");
+  assert.equal(state(dir).turns, 2, "y no cuenta turnos");
+  limpiar(dir);
+});
+
+test("approve cierra el ciclo; reject lo devuelve al trabajo con el motivo", () => {
+  const preparar = () => {
+    const dir = repo();
+    loop(dir, "start", "--check", "npm test");
+    verde(dir);
+    gatePi(dir);
+    resumir(dir);
+    gatePi(dir);
+    return dir;
+  };
+  const a = preparar();
+  assert.equal(loop(a, "approve").status, 0);
+  assert.equal(state(a).status, "passed");
+  assert.match(progreso(a), /cierre aprobado por la persona/);
+  limpiar(a);
+
+  const b = preparar();
+  assert.equal(loop(b, "reject", "--reason", "falta el caso de error").status, 0);
+  assert.equal(state(b).status, "active");
+  assert.match(progreso(b), /no aprobó el cierre \(turno 2\):\*\* falta el caso de error/);
+  limpiar(b);
+});
+
+test("approve y reject sin un ciclo esperando fallan", () => {
+  const dir = repo();
+  loop(dir, "start", "--check", "npm test");
+  assert.equal(loop(dir, "approve").status, 1);
+  assert.equal(loop(dir, "reject").status, 1);
+  limpiar(dir);
+});
+
+test("sin --approval, un ciclo esperando a la persona no hace nada en la puerta de Claude", () => {
+  const dir = repo();
+  loop(dir, "start", "--check", "npm test");
+  verde(dir);
+  gatePi(dir);
+  resumir(dir);
+  gatePi(dir);
+  assert.equal(gate(dir), null);
+  assert.equal(state(dir).status, "awaiting-approval");
+  limpiar(dir);
+});
+
+test("pre-bash DENIEGA que el agente apruebe o rechace el cierre", () => {
+  assert.equal(hook("pre-bash", { command: "node .claude/helpers/loop.cjs approve" }), "deny");
+  assert.equal(hook("pre-bash", { command: "node .claude/helpers/loop.cjs reject --reason x" }), "deny");
+});
