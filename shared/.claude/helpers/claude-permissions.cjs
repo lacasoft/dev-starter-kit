@@ -54,6 +54,10 @@ function globToRegex(glob) {
   let re = "";
   for (let i = 0; i < glob.length; i++) {
     const c = glob[i];
+    if (c === "\\" && i + 1 < glob.length) {
+      re += glob[++i].replace(/[.+^${}()|[\]\\*?]/g, "\\$&"); // \[ y similares: el carácter literal
+      continue;
+    }
     if (c === "*" && glob[i + 1] === "*") {
       i++;
       if (glob[i + 1] === "/") {

@@ -7,10 +7,11 @@
  *
  * Como en Claude Code: una regla sin `paths:` en su frontmatter se carga siempre (proyecto de un
  * stack, reglas propias del equipo); una con `paths:` solo al trabajar en archivos que coinciden
- * (en monorepo, la carpeta de cada stack).
+ * (en monorepo, la carpeta de cada stack): `appliesTo` dice si una regla toca un archivo.
  */
 const fs = require("fs");
 const path = require("path");
+const { globToRegex } = require("./claude-permissions.cjs");
 
 const ROOT = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, "..", "..");
 
@@ -54,7 +55,15 @@ function load(root = ROOT) {
   return out;
 }
 
-module.exports = { parse, load };
+/** ¿Aplica la regla a este archivo? Las de `paths:` se comparan con la ruta relativa a la raíz. */
+function appliesTo(rule, file, root = ROOT) {
+  if (rule.always) return true;
+  const rel = path.relative(root, path.resolve(root, file)).split(path.sep).join("/");
+  if (!rel || rel.startsWith("..")) return false;
+  return rule.paths.some((g) => globToRegex(g.replace(/^\.\//, "")).test(rel));
+}
+
+module.exports = { parse, load, appliesTo };
 
 if (require.main === module) {
   const reglas = load();
