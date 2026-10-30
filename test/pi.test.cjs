@@ -16,6 +16,7 @@ const INSTALL = path.join(__dirname, "..", "install.js");
 const HARNESS = `
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall, getCurrentSystemPrompt, getCurrentTools } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -37,11 +38,15 @@ export default function (pi: ExtensionAPI) {
     return fauxAssistantMessage(step.tool ? fauxToolCall(step.tool, step.args ?? {}) : fauxText(step.text ?? "ok"));
   }));
   pi.registerProvider(faux.provider);
+  // Una herramienta que el kit no conoce, como la de un servidor MCP u otra extensión.
+  pi.registerTool({ name: "eco", label: "eco", description: "Repite un texto", parameters: Type.Object({}), async execute() {
+    return { content: [{ type: "text", text: "eco" }], details: {} };
+  } });
 }
 `;
 
 // Instala el kit en un proyecto NestJS temporal y corre Pi una vez con los pasos dados.
-function correrPi({ install = ["--stack", "backend/nestjs", "--pi"], prompt = "hola", piArgs = [], steps = [{ text: "ok" }], antes } = {}) {
+function correrPi({ install = ["--stack", "backend/nestjs", "--pi"], prompt = "hola", piArgs = [], steps = [{ text: "ok" }], antes, home } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-pi-"));
   const agente = path.join(os.tmpdir(), `kit-pi-agente-${path.basename(dir)}`);
   fs.mkdirSync(agente);
@@ -57,7 +62,7 @@ function correrPi({ install = ["--stack", "backend/nestjs", "--pi"], prompt = "h
     input: "",
     encoding: "utf8",
     timeout: 60000,
-    env: { ...process.env, PI_CODING_AGENT_DIR: agente, HARNESS_OUT: agente, HARNESS_STEPS: JSON.stringify(steps), PI_OFFLINE: "1", PI_SKIP_VERSION_CHECK: "1", PI_TELEMETRY: "0" },
+    env: { ...process.env, ...(home ? { HOME: home } : {}), PI_CODING_AGENT_DIR: agente, HARNESS_OUT: agente, HARNESS_STEPS: JSON.stringify(steps), PI_OFFLINE: "1", PI_SKIP_VERSION_CHECK: "1", PI_TELEMETRY: "0" },
   });
   assert.equal(r.status, 0, r.stdout + r.stderr);
   const leer = (f) => fs.readFileSync(path.join(agente, f), "utf8");
@@ -94,5 +99,47 @@ test("sin --pi, Pi ve las líneas @ sin expandir y no carga las skills", { skip 
   const res = correrPi({ install: ["--stack", "backend/nestjs"] });
   assert.match(res.prompt, /^@\.claude\/CLAUDE\.base\.md$/m);
   assert.doesNotMatch(res.prompt, /<name>tdd<\/name>/);
+  limpiar(res);
+});
+
+test("los guardrails del kit funcionan en Pi: hook-handler, settings.json y herramientas desconocidas", { skip }, () => {
+  // HOME falso: la prueba de ~/.ssh nunca toca tus llaves reales.
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "kit-pi-home-"));
+  fs.mkdirSync(path.join(home, ".ssh"));
+  fs.writeFileSync(path.join(home, ".ssh", "id_rsa"), "LLAVE-FALSA\n");
+  const secreto = "'AKIA" + "QWERTYUIOPASDFGH'";
+  const pasos = [
+    ["read .env", { tool: "read", args: { path: ".env" } }, true, /Lectura bloqueada/],
+    ["read .env.example", { tool: "read", args: { path: ".env.example" } }, false],
+    ["grep sobre .env desde bash", { tool: "bash", args: { command: "grep SECRETO .env" } }, true, /Lectura bloqueada/],
+    ["push --force", { tool: "bash", args: { command: "git push --force origin main" } }, true, /push --force a rama protegida/],
+    ["sudo", { tool: "bash", args: { command: "sudo ls" } }, true, /sudo/],
+    ["instalar sin interfaz", { tool: "bash", args: { command: "npm install left-pad@1.3.0 --dry-run" } }, true, /Requiere aprobación y no hay interfaz/],
+    ["write con secreto", { tool: "write", args: { path: "secreto.ts", content: `const k = ${secreto};\n` } }, true, /Posible secreto/],
+    ["edit con secreto", { tool: "edit", args: { path: "src/app.ts", edits: [{ oldText: "1", newText: secreto }] } }, true, /Posible secreto/],
+    ["read ~/.ssh", { tool: "read", args: { path: "~/.ssh/id_rsa" } }, true, /settings\.json \(Read\(~\/\.ssh\/\*\*\)\)/],
+    ["regla local del equipo", { tool: "bash", args: { command: "terraform destroy -auto-approve" } }, true, /terraform destroy/],
+    ["herramienta desconocida", { tool: "eco", args: {} }, true, /eco no es del kit/],
+    ["editar un .env de ejemplo", { tool: "write", args: { path: ".env.example", content: "X=\n" } }, false, /archivo de entorno/],
+  ];
+  const res = correrPi({
+    home,
+    steps: [...pasos.map((p) => p[1]), { text: "fin" }],
+    antes: (dir) => {
+      fs.writeFileSync(path.join(dir, ".env"), "SECRETO=1\n");
+      fs.mkdirSync(path.join(dir, "src"));
+      fs.writeFileSync(path.join(dir, "src", "app.ts"), "export const x = 1;\n");
+      fs.writeFileSync(path.join(dir, ".claude", "settings.local.json"), JSON.stringify({ permissions: { deny: ["Bash(terraform destroy*)"] } }));
+    },
+  });
+  assert.equal(res.log.length, pasos.length);
+  pasos.forEach(([nombre, , bloqueado, re], i) => {
+    assert.equal(res.log[i].error, bloqueado, `${nombre}: ${res.log[i].text}`);
+    if (re) assert.match(res.log[i].text, re, nombre);
+  });
+  assert.ok(res.log.every((l) => !/LLAVE-FALSA|SECRETO=1/.test(l.text)), "ningún secreto llegó al modelo");
+  assert.ok(!fs.existsSync(path.join(res.dir, "secreto.ts")));
+  assert.equal(fs.readFileSync(path.join(res.dir, "src", "app.ts"), "utf8"), "export const x = 1;\n");
+  fs.rmSync(home, { recursive: true, force: true });
   limpiar(res);
 });

@@ -132,6 +132,27 @@ const BASH_DENY = [
   [/^(?!\s*node\s+\.claude\/helpers\/loop\.cjs\b).*\.claude\/loop\/state\.json/, "toca el estado del ciclo (.claude/loop/state.json), que solo escribe loop.cjs: el verificador no se negocia; usa loop.cjs status o stop"],
 ];
 
+// Archivos de entorno reales (.env, .env.local, .envrc…): los ejemplos (.example, .sample,
+// .template) documentan las variables sin valores y sí se pueden leer. Misma regla que pre-read.
+const isRealEnvFile = (p) => /^\.env(rc|\..+)?$/.test(path.basename(p)) && !/\.(example|sample|template)$/.test(p);
+// Comandos que vuelcan o cargan el contenido de un archivo. Leer un .env real desde la shell
+// esquivaría el hook pre-read: `grep DB_PASSWORD .env` devolvía el secreto al modelo.
+const ENV_READERS = new Set(["cat", "tac", "nl", "less", "more", "head", "tail", "grep", "egrep", "fgrep", "rg", "ag", "awk", "gawk", "sed", "cut", "sort", "uniq", "strings", "xxd", "od", "hexdump", "base64", "bat", "batcat", "source", ".", "diff", "comm", "paste", "jq", "yq"]);
+function readsRealEnv(cmd) {
+  for (const segment of cmd.split(/&&|\|\||;|\||\n/)) {
+    const words = segment.trim().split(/\s+/).filter(Boolean);
+    while (words.length && /^[A-Za-z_]\w*=/.test(words[0])) words.shift(); // VAR=valor delante del comando
+    if (words[0] === "sudo") words.shift();
+    const reader = ENV_READERS.has(words[0]);
+    for (let i = 1; i < words.length; i++) {
+      const redir = words[i].startsWith("<") || words[i - 1] === "<";
+      const file = words[i].replace(/^<+/, "").replace(/^['"]|['"]$/g, "");
+      if (file && isRealEnvFile(file) && (reader || redir)) return file;
+    }
+  }
+  return null;
+}
+
 // Paquetes que un comando de instalación añadiría. null = no es una instalación;
 // [] = instala desde el lockfile/manifiesto del propio repo (seguro, no se pregunta).
 const INSTALL_RE = /(?:^|[;&|]\s*)(?:npm|pnpm|yarn|bun|pip3?|uv|composer|gem|cargo|go)\s+(?:install|add|require|get|i)\b([^\n;&|]*)/i;
@@ -227,6 +248,13 @@ switch (action) {
       }
     }
 
+    const env = readsRealEnv(cmd);
+    if (env) {
+      denyPreTool(
+        `Lectura bloqueada: el comando lee ${env}, que puede contener secretos reales. Usa .env.example para conocer las variables (solo nombres); si necesitas un valor concreto, pídeselo a la persona.`
+      );
+    }
+
     // ...y meter código de terceros nuevo se confirma con la persona.
     const pkgs = newPackages(cmd);
     if (pkgs && pkgs.length) {
@@ -282,7 +310,7 @@ switch (action) {
     // en permissions.deny porque las reglas de permisos no admiten excepciones: Read(./.env.*)
     // bloqueaba también .env.example.
     const base = path.basename(toolInput.file_path || "");
-    if (/^\.env(rc|\..+)?$/.test(base) && !/\.(example|sample|template)$/.test(base)) {
+    if (isRealEnvFile(toolInput.file_path || "")) {
       denyPreTool(
         `Lectura bloqueada: ${base} puede contener secretos reales. Usa .env.example para conocer las variables (solo nombres); si necesitas un valor concreto, pídeselo a la persona.`
       );

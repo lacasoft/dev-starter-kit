@@ -22,6 +22,18 @@ function decision(payload) {
   }
 }
 
+// ---- pre-bash: leer un .env real desde la shell esquivaría pre-read ----
+const bashDecision = (command) => {
+  const { out } = run("pre-bash", { tool_input: { command } });
+  return out.trim() ? JSON.parse(out).hookSpecificOutput.permissionDecision : null;
+};
+for (const c of ["cat .env", "grep -E '^DB_PASSWORD=' .env", "head -n1 config/.env.local", "source .env && npm start", ". ./.env", "while read l; do echo $l; done < .env", "sed -n 1p .env.production", "DEBUG=1 cat .envrc"]) {
+  test(`pre-bash DENIEGA leer un .env real: ${c}`, () => assert.equal(bashDecision(c), "deny"));
+}
+for (const c of ["cat .env.example", "cp .env.example .env", "grep X src/.env.sample", "docker compose --env-file .env up", "echo .env >> .gitignore"]) {
+  test(`pre-bash PERMITE: ${c}`, () => assert.equal(bashDecision(c), null));
+}
+
 // ---- pre-bash: guards destructivos ----
 test("pre-bash BLOQUEA rm -rf /", () => assert.equal(run("pre-bash", { tool_input: { command: "rm -rf /" } }).code, 2));
 test("pre-bash BLOQUEA rm -rf $HOME", () => assert.equal(run("pre-bash", { tool_input: { command: "rm -rf $HOME" } }).code, 2));

@@ -135,7 +135,7 @@ Nunca, sin autorización explícita de la persona en ese mismo momento:
 - Saltarse controles de seguridad (`--no-verify`, desactivar hooks, `chmod 777`).
 - Publicar o desplegar hacia fuera (`npm publish`, deploy a producción).
 
-Esto no es solo documentación: el hook `pre-bash` (`helpers/hook-handler.cjs`) **deniega** lo destructivo y **pide confirmación** ante instalaciones de terceros. Si un comando tuyo se bloquea, la respuesta correcta es replantear el comando, no buscar cómo esquivar el hook.
+Esto no es solo documentación: el hook `pre-bash` (`helpers/hook-handler.cjs`) **deniega** lo destructivo y **pide confirmación** ante instalaciones de terceros (en Pi Agent, la extensión del kit aplica las mismas reglas). Si un comando tuyo se bloquea, la respuesta correcta es replantear el comando, no buscar cómo esquivar el hook.
 
 ## 7. Calidad
 
