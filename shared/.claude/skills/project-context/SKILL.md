@@ -36,6 +36,7 @@ Si partiste de un `design.md`, pregunta solo lo que el diseño no responde. Si n
 ## 5. Escribe y cierra
 - Elimina el comentario de plantilla y las secciones que no aplican; deja las preguntas abiertas en una sección final **Pendiente de confirmar**.
 - Si encontraste decisiones de arquitectura importantes sin registrar, propón ADRs (skill `adr`) en vez de narrarlas en este archivo.
+- Si trasladaste límites (*Responsabilidades y límites*, *Contextos y propiedad*), quedan como intención: propón la skill `architecture-tests` para convertirlos en reglas que fallen solas.
 - Lo que aprendiste del repo que no cabe aquí pero conviene recordar (dónde vive algo, trampas) va a la memoria del agente `researcher`.
 - Resume a la persona qué se confirmó, qué se infirió y qué quedó pendiente.
 

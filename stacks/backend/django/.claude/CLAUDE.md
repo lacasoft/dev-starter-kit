@@ -3,6 +3,7 @@
 ## Estructura
 - Apps por dominio (`apps/<dominio>/`), no un monolito de un solo app. `settings/` dividido (`base.py`, `dev.py`, `prod.py`).
 - Lógica de negocio en services/managers, no en las views ni "fat models" sin límite.
+- Una app no impide imports desde otras: si los límites importan, compruébalos con import-linter (skill `architecture-tests`).
 
 ## ORM (donde se cae el rendimiento)
 - Evita **N+1**: `select_related` (FK/1-1) y `prefetch_related` (M2M/reverse). Mide con `django-debug-toolbar`/`QuerySet.explain()`.
