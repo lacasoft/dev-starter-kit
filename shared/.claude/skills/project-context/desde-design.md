@@ -21,9 +21,13 @@ reescriba requisitos ni decisiones: el diseño se **traslada**, resumido y con l
 | título + `requirements` (funcionales) | **Visión del producto** | 2-4 líneas: qué es, para quién, los casos de uso principales |
 | `out-of-scope` | **Visión del producto** → línea "Fuera de alcance (v1)" | Lista corta. Es lo que más evita que el agente construya de más |
 | `api-data-model` (entidades, términos) | **Modelo / dominio** | Glosario de entidades y su clave de acceso |
+| `api-data-model` (*Contextos y propiedad*, si existe) | **Modelo / dominio** → "Contextos y propiedad" | La tabla tal cual: contexto, reglas, dueño de los datos, contratos. Si el repo todavía no tiene estructura, en **Estructura del repositorio** sugiere un módulo por contexto, sin imponerlo |
 | `api-data-model` (endpoints, eventos) | **Arquitectura** → "Contratos" | Solo los de los casos de uso principales, con idempotencia y paginación si el diseño las fija |
 | `architecture` | **Arquitectura** | Componentes y flujo principal, síncrono y asíncrono; enlaza el diagrama del diseño en vez de copiarlo |
+| `architecture` (*Ficha de responsabilidades*, si existe) | **Arquitectura** → "Responsabilidades y límites" | La tabla tal cual: componente, responsable de, no le toca, estado del que es dueño y ejecución. Son los límites que el código respeta: ahí se ve dónde va cada regla |
+| `architecture` y `api-data-model` (dueños) | **Reglas de negocio (invariantes)** | Las de límite, en una línea cada una: qué componente decide qué, y que ningún contexto escribe los datos de otro |
 | `failures` | **Arquitectura** → "Fallas previstas" y **Testing** | Una línea por escenario (escenario → mitigación). En *Testing*, los que merecen test de regresión |
+| `failures` (*Flujos críticos*, si existen) | **Testing** → "Tests de recuperación" | Uno por cada paso con efecto **desconocido** o con recuperación (duplicado, timeout, concurrencia, reinicio): qué se simula y qué evidencia de cierre se comprueba. No los escribas ahora: quedan como lista para la skill `tdd` |
 | `requirements` (no funcionales) + `scale` | **Atributos de calidad** | Los umbrales con número (latencia, disponibilidad, consistencia) y el orden de magnitud de carga |
 | `requirements` (seguridad, privacidad) | **Seguridad y compliance** | Si el diseño fija el nivel ASVS, úsalo; si no, propónlo y márcalo como pendiente |
 | `decisions` | **Decisiones de arquitectura** | Un ADR por decisión (abajo) y aquí solo la línea con el enlace |

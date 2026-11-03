@@ -32,7 +32,9 @@
 -->
 
 ## Arquitectura
-<!-- Estilo (capas, hexagonal, DDD), bounded contexts, límites de servicio, flujos principales. -->
+<!-- Estilo (capas, hexagonal, DDD), bounded contexts, límites de servicio, flujos principales.
+     Responsabilidades y límites: por componente o módulo, de qué es responsable, qué no le toca y de qué
+     estado es dueño. Es lo que dice dónde va cada regla de negocio. -->
 
 ## Reglas de negocio (invariantes)
 <!-- Las reglas que NUNCA se deben violar. Lo que el agente debe respetar sí o sí.
