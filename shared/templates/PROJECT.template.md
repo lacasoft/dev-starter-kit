@@ -66,7 +66,9 @@
 <!-- Las imprescindibles (solo nombres, NUNCA valores). Cuáles hacen fail-fast en boot. -->
 
 ## Testing
-<!-- Frameworks, dónde viven los tests, umbral de cobertura, comandos. -->
+<!-- Frameworks, dónde viven los tests, umbral de cobertura, comandos.
+     Restricciones de arquitectura: cada límite y la regla que lo comprueba, o "intención" si nada lo
+     comprueba todavía (skill architecture-tests). -->
 
 ## Decisiones de arquitectura
 <!-- No las narres aquí: viven en docs/adr/ (skill adr). Enlaza las que cambian cómo se trabaja.

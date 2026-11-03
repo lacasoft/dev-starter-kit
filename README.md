@@ -14,7 +14,7 @@ Configuración `.claude` unificada para backend, frontend, mobile y blockchain. 
 │   ├── CLAUDE.base.md          # baseline universal (comportamiento, agentes, memoria, seguridad, calidad)
 │   ├── settings.json           # hooks + permisos + statusLine
 │   ├── agents/                 # 14 agentes (5 core + 9 especialistas) — ver "Agentes incluidos"
-│   ├── skills/                 # 19 skills (flujo + contexto + ingeniería + seguridad) — ver "Skills incluidas"
+│   ├── skills/                 # 20 skills (flujo + contexto + ingeniería + seguridad) — ver "Skills incluidas"
 │   ├── commands/               # /swarm, /kit:status
 │   ├── helpers/                # claude-imports, claude-permissions, claude-rules, hook-handler, loop, statusline
 │   └── templates/              # PROJECT.template.md (definición del proyecto)
@@ -125,7 +125,7 @@ Además, el kit instala por stack agentes/skills externos curados (`frontend-dev
 
 **Flujo de trabajo**: `tdd` · `diagnose` · `grill-me` · `handoff` · `swarm-orchestration` · `verification` · `code-review-response` · `git-worktrees` · `loop-task`
 **Contexto y memoria**: `project-context` (rellena `CLAUDE.project.md` a partir del repo real) · `adr` (registro de decisiones en `docs/adr/`)
-**Ingeniería/entrega**: `ci-cd` · `performance-profiling` · `migration` · `monorepo` · `release` · `ship-gate` · `iac`
+**Ingeniería/entrega**: `ci-cd` · `performance-profiling` · `migration` · `monorepo` · `release` · `ship-gate` · `iac` · `architecture-tests` (convierte los límites de `CLAUDE.project.md` en reglas que fallan solas)
 **Seguridad**: `owasp-review` (revisión contra OWASP Top 10:2025, ASVS 5.0 y CWE; LLM y agentes 2026)
 
 Las de ingeniería se destilaron (en español, a nuestra profundidad) del catálogo MIT
@@ -171,6 +171,11 @@ En Pi Agent (instalado con `--pi`) no hace falta `--add-dir`: `/skill:project-co
 | Contextos y propiedad (system-design-kit ≥ 1.5) | *Modelo / dominio*, y un módulo por contexto si el repo todavía no tiene estructura |
 | Decisiones clave y tradeoffs | **Un ADR por decisión** en `docs/adr/`, con la plantilla de la skill `adr` |
 | Supuestos sin confirmar | *Pendiente de confirmar* |
+
+Los límites llegan como **intención**: el diseño los nombra, pero nada los comprueba todavía. La skill
+`architecture-tests` los convierte en reglas del lint o de los tests que fallan si alguien los cruza
+(dependency-cruiser, import-linter, Spring Modulith o ArchUnit, ArchUnitNET, deptrac; todas libres),
+y anota en *Testing → Restricciones de arquitectura* cuál está automatizada y cuál sigue como intención.
 
 Lo que el repo sí sabe (stack real, comandos, estructura) sigue saliendo del repo. El archivo
 anota de qué diseño salió y su fecha, así que si el diseño cambia, volver a correrlo actualiza

@@ -3,6 +3,7 @@
 ## Estructura de módulo
 - DDD con bounded contexts en `/src/modules/<dominio>/`. Cada módulo expone: `*.controller`, `*.service` (caso de uso), `*.repository`, `*.dto`, `*.entity`, y sus `*.spec`.
 - Un módulo = un contexto cohesivo. Exporta solo lo necesario; no compartas repositories entre módulos (cruza por servicios/eventos).
+- Un `@Module` no impide imports directos entre carpetas: si los límites importan, compruébalos con dependency-cruiser (skill `architecture-tests`).
 
 ## DI y ciclo de vida
 - Inyección por constructor siempre. Cuida el **scope** de providers (`DEFAULT` singleton vs `REQUEST`): un provider `REQUEST` contamina a sus consumidores y mata el rendimiento.

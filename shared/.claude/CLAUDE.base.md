@@ -143,7 +143,7 @@ Esto no es solo documentación: el hook `pre-bash` (`helpers/hook-handler.cjs`) 
 - Nada de código muerto ni comentado "por si acaso".
 - Manejo de errores explícito; nunca tragar excepciones en silencio.
 - Tests para la nueva funcionalidad y para cada regresión corregida.
-- **Respeta los límites** de *Arquitectura → Responsabilidades y límites* en `CLAUDE.project.md`: cada regla de negocio va en su dueño (no en el controlador, el adaptador ni el job), y ningún módulo escribe el estado de otro. Si una tarea exige cruzar un límite, dilo antes de hacerlo.
+- **Respeta los límites** de *Arquitectura → Responsabilidades y límites* en `CLAUDE.project.md`: cada regla de negocio va en su dueño (no en el controlador, el adaptador ni el job), y ningún módulo escribe el estado de otro. Si una tarea exige cruzar un límite, dilo antes de hacerlo. Un límite solo está garantizado si una regla lo comprueba (*Testing → Restricciones de arquitectura*, skill `architecture-tests`): una carpeta o un módulo del framework no aíslan nada.
 - TypeScript/tipado **strict**; evita `any` (usa `unknown` + narrowing).
 - **Gate de código nuevo** (*clean as you code*): lo que cambia no introduce issues nuevos de lint, tipos ni seguridad; **cobertura ≥ 80 % de las líneas nuevas o modificadas** donde se mida; duplicación nueva ≤ 3 %. La deuda heredada no bloquea el cambio, pero no se amplía.
 - En lógica crítica (dinero, permisos, cálculos), la cobertura no basta: **mutation testing** (Stryker, mutmut, PIT) o **property-based testing** demuestran que los tests fallan cuando el código se rompe.
