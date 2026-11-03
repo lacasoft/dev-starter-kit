@@ -19,7 +19,7 @@ Las listas completas (las 10 categorías con qué buscar, los 17 capítulos de A
 Antes de buscar patrones, dibuja el mapa: puntos de entrada (rutas, handlers, webhooks, jobs, CLI, mensajes de cola), fronteras de confianza, datos sensibles que cruzan cada frontera, dependencias nuevas y llamadas salientes (HTTP, shell, LLM, otras herramientas). Sin mapa, el barrido es ruido.
 
 ## 3. Barrido por categoría
-Recorre A01→A10 sobre la superficie del paso 2 (tabla en `referencia.md`). Para cada sospecha, **traza fuente → sink**: de dónde viene el dato, qué validación o codificación recibe y dónde se usa. Si no puedes trazarlo, es sospecha, no hallazgo.
+**Primero lee `.claude/skills/owasp-review/referencia.md`**: su tabla dice qué buscar en cada categoría. Luego recorre A01→A10 sobre la superficie del paso 2. Para cada sospecha, **traza fuente → sink**: de dónde viene el dato, qué validación o codificación recibe y dónde se usa. Si no puedes trazarlo, es sospecha, no hallazgo.
 
 Prioridades que más se escapan:
 - **A01**: autorización por objeto en cada acceso por id (no basta estar autenticado); SSRF también vive aquí desde 2025.
@@ -27,7 +27,7 @@ Prioridades que más se escapan:
 - **A10**: qué pasa cuando algo falla. Un `catch` que deja pasar, un check de autorización que concede si lanza excepción, un error que filtra internals.
 
 ## 4. ASVS por tipo de cambio
-Según lo que toque el cambio, verifica los capítulos correspondientes al nivel elegido (mapa en `referencia.md`): auth → V6/V7/V9/V10, permisos → V8, archivos → V5, API → V4, frontend → V3, configuración → V13, cripto → V11, logs y errores → V16.
+Según lo que toque el cambio, verifica los capítulos correspondientes al nivel elegido (mapa en `.claude/skills/owasp-review/referencia.md`): auth → V6/V7/V9/V10, permisos → V8, archivos → V5, API → V4, frontend → V3, configuración → V13, cripto → V11, logs y errores → V16.
 
 ## 5. LLM y agentes (si el proyecto los usa)
 Si el código llama a un LLM, revisa contra el **OWASP Top 10 for LLM Applications 2026**; si construye agentes, herramientas o servidores MCP, también contra el **Top 10 for Agentic Applications 2026**. Lo mínimo: el texto que el modelo lee es dato no confiable, su salida se valida antes de tocar SQL/shell/HTML/herramientas, y lo irreversible pide confirmación humana.

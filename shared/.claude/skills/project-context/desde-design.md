@@ -11,7 +11,8 @@ reescriba requisitos ni decisiones: el diseño se **traslada**, resumido y con l
   `api-data-model`, `architecture`, `decisions`, `failures`, `ai-review`.
 - Una sección que solo tiene `_⏳ Pendiente_` / `_⏳ Pending_` está vacía: no hay nada que trasladar.
 - Si la ruta está fuera del proyecto, Claude Code pedirá permiso para leerla (o arranca con
-  `claude --add-dir <carpeta del diseño>`).
+  `claude --add-dir <carpeta del diseño>`). En Pi Agent no hace falta: la ruta se lee directo
+  (`/skill:project-context ../<carpeta del diseño>/design.md`).
 
 ## Mapeo a CLAUDE.project.md
 

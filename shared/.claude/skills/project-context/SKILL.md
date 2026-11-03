@@ -17,7 +17,9 @@ Las rutas que nombra esta skill (`CLAUDE.project.md`, `docs/adr/`, `.claude/…`
 - **Cero secretos**: nombres de variables de entorno sí; valores nunca.
 
 ## 0. Si partes de un diseño (design.md)
-Si el argumento es una ruta a un `design.md` del **system-design-kit** (front matter con `language` y marcas `<!-- section:<id> -->`), ese documento es la fuente de **lo que el repo no puede decir**: visión, requisitos, escala, decisiones y fallas. La persona ya lo pensó y lo decidió; tu trabajo es trasladarlo sin reescribirlo ni reinterpretarlo. Lee [desde-design.md](desde-design.md) y sigue su mapeo. Lo derivable del repo (stack real, comandos, estructura) sigue saliendo de los pasos 1-3: el diseño no sustituye al código.
+Si el argumento es una ruta a un `design.md` del **system-design-kit** (front matter con `language` y marcas `<!-- section:<id> -->`), ese documento es la fuente de **lo que el repo no puede decir**: visión, requisitos, escala, decisiones y fallas. La persona ya lo pensó y lo decidió; tu trabajo es trasladarlo sin reescribirlo ni reinterpretarlo. Lo derivable del repo (stack real, comandos, estructura) sigue saliendo de los pasos 1-3: el diseño no sustituye al código.
+
+**Antes de escribir nada, lee [desde-design.md](desde-design.md)**, que está junto a este archivo (`.claude/skills/project-context/desde-design.md`). Su tabla dice a qué sección de `CLAUDE.project.md` va cada parte del diseño, incluida la ficha de responsabilidades, que se copia tal cual, y los flujos críticos, que se vuelven tests de recuperación. Sin esa tabla, no traslades nada.
 
 ## 1. Lee lo que hay
 `CLAUDE.project.md` actual (si existe, **actualízalo**, no lo reescribas: conserva lo que escribió el equipo), `README`, manifiestos y lockfiles, configuración de lint/format/tests, `Makefile`/scripts, Dockerfile y compose, workflows de CI, `.env.example`, `docs/adr/`, y la estructura de primer y segundo nivel. Si el argumento nombra un área, profundiza ahí.
