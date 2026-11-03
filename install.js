@@ -1137,7 +1137,26 @@ function summarizeProject(stacks) {
 }
 
 // ---------- main ----------
+// ---------- Node de Windows desde WSL ----------
+// Con WSL y Node instalado solo en Windows, npx corre en Windows: CMD no acepta la carpeta de WSL
+// (\\wsl.localhost\…) y se cambia a C:\Windows, donde el kit se instalaría o fallaría con EPERM.
+function windowsSystemDir(platform = process.platform, cwd = CWD, env = process.env) {
+  if (platform !== "win32") return false;
+  const sys = path.win32.resolve(env.SystemRoot || env.windir || "C:\\Windows").toLowerCase();
+  const dir = path.win32.resolve(cwd).toLowerCase();
+  return dir === sys || dir.startsWith(sys + "\\") || /^\\\\wsl/i.test(env.INIT_CWD || "");
+}
+
 async function main() {
+  if (windowsSystemDir()) {
+    console.error(`❌ El instalador está corriendo con el Node de Windows en ${CWD}.
+   Si usas WSL: instala Node dentro de WSL (por ejemplo con nvm), comprueba que
+   \`command -v node npx\` muestre rutas de Linux y no /mnt/c/…, y vuelve a correrlo.
+   Si usas Windows: córrelo desde la carpeta de tu proyecto, no desde una carpeta del sistema.`);
+    closeInput();
+    process.exitCode = 1;
+    return;
+  }
   const VERSION = (readJSON(path.join(KIT, "package.json")) || {}).version || "?";
   console.log("\n╔════════════════════════════════════════════╗");
   console.log(`║   Dev Starter Kit v${VERSION} — instalador      `.slice(0, 45) + "║");
@@ -1359,8 +1378,12 @@ async function main() {
   closeInput();
 }
 
-main().catch((e) => {
-  console.error(e);
-  closeInput();
-  process.exit(1);
-});
+module.exports = { windowsSystemDir };
+
+if (require.main === module) {
+  main().catch((e) => {
+    console.error(e);
+    closeInput();
+    process.exit(1);
+  });
+}

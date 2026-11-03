@@ -139,3 +139,15 @@ test("lo que cuelga de un proyecto detectado no cuenta como otro proyecto", () =
   });
   assert.equal(r.stack, "mobile/react-native");
 });
+
+// ---- Node de Windows desde WSL ----
+test("detecta el Node de Windows corriendo desde WSL o en una carpeta del sistema", () => {
+  const { windowsSystemDir } = require(path.join(__dirname, "..", "install.js"));
+  const sys = { SystemRoot: "C:\\Windows" };
+  assert.equal(windowsSystemDir("win32", "C:\\Windows", sys), true, "CMD cayó a C:\\Windows");
+  assert.equal(windowsSystemDir("win32", "C:\\Windows\\System32", sys), true);
+  assert.equal(windowsSystemDir("win32", "C:\\Users\\ana\\x", { ...sys, INIT_CWD: "\\\\wsl.localhost\\Ubuntu\\home\\ana\\x" }), true, "npx se lanzó desde WSL");
+  assert.equal(windowsSystemDir("win32", "C:\\Users\\ana\\proyecto", sys), false, "Windows normal: sigue");
+  assert.equal(windowsSystemDir("win32", "C:\\WindowsApps\\x", sys), false, "no confunde carpetas con nombre parecido");
+  assert.equal(windowsSystemDir("linux", "/home/ana/x", {}), false);
+});
