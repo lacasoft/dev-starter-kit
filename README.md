@@ -35,7 +35,7 @@ Dentro de **cualquier proyecto** (nuevo o heredado), sin clonar nada:
 ```bash
 npx -y github:lacasoft/dev-starter-kit              # interactivo
 npx -y github:lacasoft/dev-starter-kit --yes --all  # desatendido (todo)
-npx -y github:lacasoft/dev-starter-kit#v3.5.0       # fijar una versión (recomendado)
+npx -y github:lacasoft/dev-starter-kit#v3.6.0       # fijar una versión (recomendado)
 ```
 
 Toma siempre la última versión de `master` (o el tag indicado). Repo **público (MIT)**.
@@ -297,8 +297,8 @@ modelos de varios proveedores, también locales. Con `--pi`, el kit añade una c
 las mismas skills, reglas y helpers: no hay una segunda copia que mantener.
 
 ```bash
-npx -y github:lacasoft/dev-starter-kit#v3.5.0 --pi                    # proyecto nuevo
-npx -y github:lacasoft/dev-starter-kit#v3.5.0 --update --pi --yes     # proyecto que ya usa el kit
+npx -y github:lacasoft/dev-starter-kit#v3.6.0 --pi                    # proyecto nuevo
+npx -y github:lacasoft/dev-starter-kit#v3.6.0 --update --pi --yes     # proyecto que ya usa el kit
 ```
 
 **Requisitos:** Pi 1.4.0 o superior (paquete `@earendil-works/pi-coding-agent`, pide Node.js 22.19+),
@@ -436,7 +436,7 @@ recibir la copia vieja. La solución buena es la misma que exige la baseline §6
 versión** — y de paso hace la instalación reproducible:
 
 ```bash
-npx -y github:lacasoft/dev-starter-kit#v3.5.0 --update --yes    # por tag
+npx -y github:lacasoft/dev-starter-kit#v3.6.0 --update --yes    # por tag
 npx -y github:lacasoft/dev-starter-kit#<commit> --update --yes  # por commit (el SHA del tag)
 ```
 
@@ -458,4 +458,4 @@ Repo **público (MIT)** distribuido por `npx github:` → la rama **`master` deb
   (dry-run) y en un monorepo multi-stack, en cada PR, más un job que prueba la capa de Pi dentro de Pi 1.4.0. La lista sale de `scripts/stacks.cjs`, que la deriva de `install.js`.
 - **Cómo añadir** agentes, skills, stacks o externos: ver [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Versionado**: SemVer en `package.json` + `CHANGELOG.md`, con tag anotado por versión
-  (`v3.5.0`). Instala siempre pineando (`#v3.5.0`): es reproducible y evita la cache de npx.
+  (`v3.5.0`). Instala siempre pineando (`#v3.6.0`): es reproducible y evita la cache de npx.

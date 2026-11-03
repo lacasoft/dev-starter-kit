@@ -4,6 +4,22 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](htt
 
 ## [No publicado]
 
+## [3.6.0] - 2026-11-03
+
+### Notas de actualización
+- `npx -y github:lacasoft/dev-starter-kit#v3.6.0 --update --yes`. Si tu `CLAUDE.project.md` ya tiene *Responsabilidades y límites*, corre `/architecture-tests` (en Pi, `/skill:architecture-tests`) para convertirlos en reglas.
+
+### Added
+- **Skill `architecture-tests`: de la intención a la restricción.** Convierte los límites de `CLAUDE.project.md` (*Responsabilidades y límites*, *Contextos y propiedad*, reglas de límite) en reglas del lint o de los tests que fallan si alguien los cruza:
+  - dependencias entre módulos, interfaz pública (los repositorios y modelos del ORM no salen de su módulo), propiedad de los datos (solo el dueño importa sus modelos) y ciclos;
+  - con una herramienta libre por stack: dependency-cruiser (MIT) en JavaScript y TypeScript, import-linter (BSD) en Python, Spring Modulith o ArchUnit (Apache-2.0) en Spring, ArchUnitNET (Apache-2.0) en .NET, deptrac (MIT) en PHP y lakos (MIT) para los ciclos en Flutter;
+  - o, si la persona no quiere dependencias nuevas, con un test del propio proyecto que lee los imports, marcado como más débil.
+  - Antes de dar una regla por buena, provoca una violación a propósito y comprueba que falla. Si el código ya viola un límite, no lo arregla en el mismo cambio: deja la excepción explícita, con su motivo, y anota la deuda.
+  - Anota en *Testing → Restricciones de arquitectura* qué límite está automatizado y cuál sigue como intención.
+- `/project-context`, desde un `design.md`, deja cada límite en *Restricciones de arquitectura* como "intención: sin automatizar" y propone `architecture-tests`.
+- **Baseline §7:** un límite solo está garantizado si una regla lo comprueba; una carpeta o un módulo del framework no aíslan nada. Los overlays de NestJS y Django lo dicen para `@Module` y las apps.
+- `ship-gate` comprueba que las restricciones corran en el lint o los tests, y marca **manual** las que siguen como intención. El `reviewer` marca los cambios que cruzan un límite o agregan una excepción sin motivo.
+
 ## [3.5.0] - 2026-11-03
 
 ### Notas de actualización
