@@ -4,6 +4,25 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](htt
 
 ## [No publicado]
 
+## [3.5.0] - 2026-11-03
+
+### Notas de actualización
+- `npx -y github:lacasoft/dev-starter-kit#v3.5.0 --update --yes`. Si tu proyecto vino de un `design.md` de system-design-kit ≥ 1.4, vuelve a correr `/project-context <ruta>/design.md` para traer la ficha y los flujos: actualiza solo lo que vino del diseño.
+
+### Added
+- **La ficha de responsabilidades del diseño llega al código.** `/project-context` traslada desde un `design.md`:
+  - la *Ficha de responsabilidades* a *Arquitectura → Responsabilidades y límites*;
+  - las reglas de límite (qué componente decide qué, y que ningún contexto escribe los datos de otro) a *Reglas de negocio*;
+  - los *Flujos críticos* a *Testing → Tests de recuperación*: uno por cada paso con efecto desconocido o con recuperación, como lista para `tdd`;
+  - la tabla *Contextos y propiedad* a *Modelo / dominio*, con un módulo por contexto si el repo todavía no tiene estructura.
+- **Baseline §7:** respeta los límites de *Responsabilidades y límites*. Cada regla va en su dueño (no en el controlador, el adaptador ni el job) y ningún módulo escribe el estado de otro; si una tarea exige cruzar un límite, se dice antes de hacerlo.
+- La plantilla de `CLAUDE.project.md` pide las responsabilidades en *Arquitectura*.
+
+### Fixed
+- **WSL con Node de Windows:** el instalador fallaba con `EPERM` en `C:\Windows`, porque CMD no acepta la carpeta de WSL y se cambia ahí. Ahora lo detecta antes de escribir nada y explica qué hacer.
+- **`project-context` en Pi:** ya no sugiere `claude --add-dir`; en Pi la ruta se lee directo.
+- **En Pi, las referencias de una skill podían quedar sin leer.** Una instrucción escrita a media frase se salta: en la prueba con Sonnet, `/skill:project-context` no leyó `desde-design.md` e improvisó el mapeo, sin la ficha y con los tests de recuperación en una línea. Ahora `project-context` y `owasp-review` piden leer su referencia como paso explícito y con la ruta completa. Repetida la prueba, la ficha llegó completa y quedaron 6 tests de recuperación.
+
 ## [3.4.0] - 2026-10-30
 
 Completa el soporte para [Pi Agent](https://github.com/earendil-works/pi): reglas por carpeta en monorepos y `/loop-task`. Para Claude Code no cambia nada.
