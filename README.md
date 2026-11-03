@@ -35,7 +35,7 @@ Dentro de **cualquier proyecto** (nuevo o heredado), sin clonar nada:
 ```bash
 npx -y github:lacasoft/dev-starter-kit              # interactivo
 npx -y github:lacasoft/dev-starter-kit --yes --all  # desatendido (todo)
-npx -y github:lacasoft/dev-starter-kit#v3.4.0       # fijar una versión (recomendado)
+npx -y github:lacasoft/dev-starter-kit#v3.5.0       # fijar una versión (recomendado)
 ```
 
 Toma siempre la última versión de `master` (o el tag indicado). Repo **público (MIT)**.
@@ -158,12 +158,17 @@ claude --add-dir ../acortador-urls      # para que pueda leer la carpeta del dis
 > /project-context ../acortador-urls/design.md
 ```
 
+En Pi Agent (instalado con `--pi`) no hace falta `--add-dir`: `/skill:project-context ../acortador-urls/design.md`.
+
 | Del diseño | Al proyecto |
 | --- | --- |
 | Requisitos y fuera de alcance | *Visión del producto* (con "Fuera de alcance (v1)") |
 | Requisitos no funcionales y escala | *Atributos de calidad* con sus umbrales |
 | API y modelo de datos | *Modelo / dominio* y contratos en *Arquitectura* |
 | Arquitectura inicial y escenarios de falla | *Arquitectura* (con "Fallas previstas") y tests de regresión en *Testing* |
+| Ficha de responsabilidades (system-design-kit ≥ 1.4) | *Arquitectura → Responsabilidades y límites*, y las reglas de límite en *Reglas de negocio*: el agente que programa sabe dónde va cada regla |
+| Flujos críticos | *Testing → Tests de recuperación*: uno por cada paso con efecto desconocido o con recuperación, como lista para `tdd` |
+| Contextos y propiedad (system-design-kit ≥ 1.5) | *Modelo / dominio*, y un módulo por contexto si el repo todavía no tiene estructura |
 | Decisiones clave y tradeoffs | **Un ADR por decisión** en `docs/adr/`, con la plantilla de la skill `adr` |
 | Supuestos sin confirmar | *Pendiente de confirmar* |
 
@@ -287,8 +292,8 @@ modelos de varios proveedores, también locales. Con `--pi`, el kit añade una c
 las mismas skills, reglas y helpers: no hay una segunda copia que mantener.
 
 ```bash
-npx -y github:lacasoft/dev-starter-kit#v3.4.0 --pi                    # proyecto nuevo
-npx -y github:lacasoft/dev-starter-kit#v3.4.0 --update --pi --yes     # proyecto que ya usa el kit
+npx -y github:lacasoft/dev-starter-kit#v3.5.0 --pi                    # proyecto nuevo
+npx -y github:lacasoft/dev-starter-kit#v3.5.0 --update --pi --yes     # proyecto que ya usa el kit
 ```
 
 **Requisitos:** Pi 1.4.0 o superior (paquete `@earendil-works/pi-coding-agent`, pide Node.js 22.19+),
@@ -426,7 +431,7 @@ recibir la copia vieja. La solución buena es la misma que exige la baseline §6
 versión** — y de paso hace la instalación reproducible:
 
 ```bash
-npx -y github:lacasoft/dev-starter-kit#v3.4.0 --update --yes    # por tag
+npx -y github:lacasoft/dev-starter-kit#v3.5.0 --update --yes    # por tag
 npx -y github:lacasoft/dev-starter-kit#<commit> --update --yes  # por commit (el SHA del tag)
 ```
 
@@ -448,4 +453,4 @@ Repo **público (MIT)** distribuido por `npx github:` → la rama **`master` deb
   (dry-run) y en un monorepo multi-stack, en cada PR, más un job que prueba la capa de Pi dentro de Pi 1.4.0. La lista sale de `scripts/stacks.cjs`, que la deriva de `install.js`.
 - **Cómo añadir** agentes, skills, stacks o externos: ver [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Versionado**: SemVer en `package.json` + `CHANGELOG.md`, con tag anotado por versión
-  (`v3.4.0`). Instala siempre pineando (`#v3.4.0`): es reproducible y evita la cache de npx.
+  (`v3.5.0`). Instala siempre pineando (`#v3.5.0`): es reproducible y evita la cache de npx.
