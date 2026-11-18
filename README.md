@@ -48,7 +48,7 @@ node /ruta/al/kit/install.js
 
 Flags: `--stack backend/nestjs` (fuerza stack; en monorepo, uno por carpeta: `--stack backend/nestjs:apps/api,frontend/nextjs:apps/web`) · `--yes` (no interactivo, conservador) ·
 `--all` (acepta TODO: externos + deps; combínalo con `--yes` para desatendido total) ·
-`--no-external` · `--pi` (añade la capa para [Pi Agent](#también-con-pi-agent)) · `--update`/`--force` (trae la última capa base sin pisar lo que hayas editado) · `--dry-run` (simula) · `--help`.
+`--no-external` · `--pi` (añade la capa para [Pi Agent](#también-con-pi-agent)) · `--local` (no sube la configuración del kit al repo; ver abajo) · `--update`/`--force` (trae la última capa base sin pisar lo que hayas editado) · `--dry-run` (simula) · `--help`.
 `--no-flow` se sigue aceptando para no romper scripts, pero ya no hace nada.
 
 El instalador:
@@ -61,7 +61,9 @@ El instalador:
 2. Hace **backup** de tu `.claude/` si existe.
 3. Aplica la **capa base** (`shared/.claude` → `.claude/`): agentes, skills, helpers, settings, comandos.
 4. Scaffolda **`CLAUDE.project.md`**, compone **`./CLAUDE.md`** = `@CLAUDE.project.md` + `@.claude/CLAUDE.base.md` (bloque gestionado idempotente) y escribe los overlays del stack como **reglas** en `.claude/rules/kit/` (`<categoría>.md` + `<categoría>-<stack>.md`).
-5. Actualiza **`.gitignore`** (memoria/runtime/backups/secretos), idempotente. Los ejemplos de env (`.env.example`, `.env.sample`, `.env.template`) quedan **versionados**: van negados después de `.env.*`. En un proyecto Node añade también `node_modules/` (`npm init` no crea `.gitignore` y el kit instala devDeps).
+5. Actualiza **`.gitignore`** (memoria/runtime/backups/secretos, `.DS_Store` y `*.log`), idempotente. Los ejemplos de env (`.env.example`, `.env.sample`, `.env.template`) quedan **versionados**: van negados después de `.env.*`. En un proyecto Node añade también `node_modules/` (`npm init` no crea `.gitignore` y el kit instala devDeps).
+   - Por defecto, `CLAUDE.md`, `CLAUDE.project.md`, `.claude/` y `.pi/` **se versionan**: así quien clone el repo recibe las skills, los hooks de seguridad, los permisos y la memoria de equipo, y `.pi/` encuentra `../.claude/skills`.
+   - Con **`--local`**, van al `.gitignore` y cada persona instala el kit por su cuenta. Sirve para repos de clientes u open source donde no quieres subir tu configuración. `--update` la recuerda y `--no-local` la olvida (el bloque del `.gitignore` lo quitas tú). Si esos archivos ya estaban en el repo, el instalador te da el `git rm -r --cached` que los saca sin borrarlos. Si tampoco quieres tocar el `.gitignore` del repo, mueve ese bloque a `.git/info/exclude`.
 6. **Avisa de restos de Ruflo** (claude-flow) si los encuentra: servidores en `.mcp.json`, `.claude-flow/`, `.swarm/`, archivos en `.claude/` o instrucciones en `CLAUDE.md`. Solo los enumera con el comando para quitarlos; no borra nada que no instaló el kit.
 7. (opcional) Instala **agentes/skills externos** curados vía `claude-code-templates` y deps npm por stack.
    - Los **git hooks** (husky + lint-staged + commitlint) se omiten si el directorio no es un repositorio git: `npx husky init` fallaría y dejaría las devDeps instaladas para nada.
@@ -185,9 +187,9 @@ solo lo que vino de ahí; un ADR aceptado no se edita, se reemplaza por otro.
 
 | Qué | Dónde | Quién lo escribe | Versionado |
 | --- | --- | --- | --- |
-| Instrucciones | `./CLAUDE.md` (importa `CLAUDE.project.md` y la baseline) | el equipo / `/project-context` | sí |
+| Instrucciones | `./CLAUDE.md` (importa `CLAUDE.project.md` y la baseline) | el equipo / `/project-context` | sí (no, con `--local`) |
 | Decisiones | `docs/adr/` | el equipo / skill `adr` | sí |
-| Memoria de equipo | `.claude/agent-memory/{researcher,reviewer,security-engineer}/` | esos agentes (`memory: project`) | **sí**, se revisa en PR |
+| Memoria de equipo | `.claude/agent-memory/{researcher,reviewer,security-engineer}/` | esos agentes (`memory: project`) | **sí**, se revisa en PR (no, con `--local`) |
 | Memoria personal | `~/.claude/projects/<repo>/memory/` (auto memory) y `CLAUDE.local.md` | Claude / tú | no |
 
 - **Memoria de equipo**: `researcher` recuerda el mapa del repo y sus trampas, `reviewer` los
