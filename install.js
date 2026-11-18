@@ -22,6 +22,8 @@
  *   --all                acepta TODO (externos + deps). Combina con --yes para desatendido total
  *   --no-external        no instala componentes externos (claude-code-templates / npm)
  *   --pi                 añade la capa para Pi Agent; --update la recuerda (manifiesto)
+ *   --local              no versiona la configuración del kit: CLAUDE.md, CLAUDE.project.md, .claude/
+ *                        y .pi/ van al .gitignore; --update la recuerda y --no-local la olvida
  *   --update, --force    sobrescribe la capa base con la última versión (conserva memoria y CLAUDE.project.md)
  *   --dry-run            simula: imprime qué haría, no escribe ni ejecuta
  *   --help, -h           muestra esta ayuda
@@ -42,6 +44,8 @@ const FLAGS = {
   noFlowLegacy: argv.includes("--no-flow"),
   noExternal: argv.includes("--no-external"),
   pi: argv.includes("--pi"),
+  local: argv.includes("--local"),
+  noLocal: argv.includes("--no-local"),
   update: argv.includes("--update") || argv.includes("--force"),
   dryRun: argv.includes("--dry-run"),
   help: argv.includes("--help") || argv.includes("-h"),
@@ -66,6 +70,9 @@ Uso:  node install.js [opciones]
   --no-external        no instala componentes externos
   --pi                 añade la capa para Pi Agent (.pi/): usa las mismas skills y expande los
                        imports de CLAUDE.md. --update la recuerda.
+  --local              no sube la configuración del kit al repo: agrega CLAUDE.md, CLAUDE.project.md,
+                       .claude/ y .pi/ al .gitignore (repos de clientes u open source). --update la
+                       recuerda; --no-local la olvida (las líneas del .gitignore las quitas tú).
   --update, --force    actualiza la capa base sin perder nada tuyo: solo reescribe los archivos
                        que siguen igual que como los dejó el kit (según .claude/.kit-manifest.json).
                        Lo que hayas editado se conserva y la versión nueva queda como *.kit-new.
@@ -655,7 +662,7 @@ function rufloLeftovers(kitFiles = {}) {
 // conocimiento del equipo. La `local` y CLAUDE.local.md son personales. .claude/memory/ es de la
 // memoria propia que tuvo el kit hasta la 2.x: se sigue ignorando para no versionar restos.
 // Ciclo en curso (skill loop-task): .claude/loop/ es el contrato y .loop/ el progreso. De trabajo, no de equipo.
-const GITIGNORE = [".claude/memory/", ".claude/agent-memory-local/", ".claude/loop/", ".loop/", "CLAUDE.local.md", ".claude.backup.*", ".env", ".env.*"];
+const GITIGNORE = [".claude/memory/", ".claude/agent-memory-local/", ".claude/loop/", ".loop/", "CLAUDE.local.md", ".claude.backup.*", ".DS_Store", "*.log", ".env", ".env.*"];
 // Los archivos de ejemplo de env van versionados (la baseline los exige), pero ".env.*" los
 // captura. Git aplica la última regla que casa, así que las negaciones van SIEMPRE después.
 const GITIGNORE_KEEP = ["!.env.example", "!.env.sample", "!.env.template"];
@@ -685,30 +692,70 @@ function mergePiSettings() {
   console.log(`  ${dry}${exists ? "🔀" : "➕"} .pi/settings.json (skills y /status de .claude/)`);
 }
 
+// Con --local, la configuración del kit no se versiona (repos de clientes u open source): cada
+// persona la instala por su cuenta. Por defecto sí se versiona, para que quien clone tenga las
+// skills, los hooks, los permisos y la memoria de equipo, y para que .pi/ encuentre ../.claude/skills.
+const localPaths = (withPi) => ["CLAUDE.md", "CLAUDE.project.md", ".claude/", ...(withPi ? [".pi/"] : [])];
+// ".claude" y ".claude/" cuentan como la misma línea, y "/.claude" también, porque el kit solo la
+// crea en la raíz. Esto último no sirve para todo: "/.env" deja sin ignorar un apps/api/.env, así que
+// ahí el kit agrega ".env" igual.
+const ROOT_ONLY = new Set(["CLAUDE.md", "CLAUDE.project.md", ".claude", ".pi", "node_modules"]);
+const sameEntry = (l) => {
+  const s = l.trim().replace(/\/$/, "");
+  return s.startsWith("/") && ROOT_ONLY.has(s.slice(1)) ? s.slice(1) : s;
+};
+
 // Asegura que .gitignore cubra memoria/runtime/backups/secretos (idempotente).
-function ensureGitignore(withPi = false) {
+function ensureGitignore(withPi = false, withLocal = false) {
   const gi = path.join(CWD, ".gitignore");
   const cur = fs.existsSync(gi) ? fs.readFileSync(gi, "utf8") : "";
-  const have = new Set(cur.split(/\r?\n/).map((l) => l.trim()));
+  const have = new Set(cur.split(/\r?\n/).map(sameEntry));
+  const missing = (n) => !have.has(sameEntry(n));
   // `npm init` no crea .gitignore y el propio kit instala devDeps: sin esto, el primer
   // `git add .` mete node_modules/ al repo.
-  const node = fs.existsSync(path.join(CWD, "package.json")) && !have.has("node_modules") && !have.has("/node_modules") ? ["node_modules/"] : [];
-  const add = [...node, ...GITIGNORE, ...(withPi ? [".pi.backup.*"] : [])].filter((n) => !have.has(n));
+  const node = fs.existsSync(path.join(CWD, "package.json")) && missing("node_modules") ? ["node_modules/"] : [];
+  // Con .claude/ entero ignorado, sus subcarpetas sobran.
+  const base = withLocal ? GITIGNORE.filter((n) => !n.startsWith(".claude/")) : GITIGNORE;
+  const add = [...node, ...base, ...(withPi ? [".pi.backup.*"] : [])].filter(missing);
   // Si acabamos de añadir ".env.*", reemitimos las negaciones aunque ya existan más arriba:
   // colocadas antes del patrón no harían nada, y la línea duplicada es inocua.
-  const keep = GITIGNORE_KEEP.filter((n) => !have.has(n) || add.includes(".env.*"));
-  const lines = [...add, ...keep];
+  const keep = GITIGNORE_KEEP.filter((n) => missing(n) || add.includes(".env.*"));
+  const local = withLocal ? localPaths(withPi).filter(missing) : [];
+  const lines = [...add, ...keep, ...local];
   if (!lines.length) {
     console.log("  ✓ .gitignore ya cubre memoria/runtime/secretos.");
-    return;
-  }
-  if (FLAGS.dryRun) {
+  } else if (FLAGS.dryRun) {
     console.log(`  (dry-run) añadiría a .gitignore: ${lines.join(", ")}`);
-    return;
+  } else {
+    const localBlock = local.length ? "\n# configuración del kit, local (--local): no se versiona\n" + local.join("\n") + "\n" : "";
+    const kitBlock = add.length || keep.length ? "\n# dev-starter-kit\n" + [...add, ...keep].join("\n") + "\n" : "";
+    fs.writeFileSync(gi, cur + (cur && !cur.endsWith("\n") ? "\n" : "") + kitBlock + localBlock);
+    console.log(`  ➕ .gitignore += ${lines.join("  ")}`);
   }
-  const block = (cur && !cur.endsWith("\n") ? "\n" : "") + "\n# dev-starter-kit\n" + lines.join("\n") + "\n";
-  fs.writeFileSync(gi, cur + block);
-  console.log(`  ➕ .gitignore += ${lines.join("  ")}`);
+  if (withLocal) warnTracked(localPaths(withPi));
+  else if (FLAGS.noLocal && localPaths(true).some((n) => have.has(sameEntry(n)))) {
+    console.log("  ℹ️  --no-local: el .gitignore sigue ignorando la configuración del kit. Quita a mano el bloque");
+    console.log('     "# configuración del kit, local (--local)" para que se versione.');
+  }
+}
+
+// Ignorar un archivo que git ya sigue no lo saca del repo: hay que decirlo.
+function warnTracked(paths) {
+  let tracked = "";
+  try {
+    tracked = execSync(`git ls-files -- ${paths.map((p) => JSON.stringify(p.replace(/\/$/, ""))).join(" ")}`, {
+      cwd: CWD,
+      stdio: ["ignore", "pipe", "ignore"],
+      encoding: "utf8",
+    }).trim();
+  } catch {
+    return; // no es un repo de git (o no hay git): no hay nada que advertir
+  }
+  if (!tracked) return;
+  const top = [...new Set(tracked.split("\n").map((f) => f.split("/")[0]))];
+  const [esta, lo] = top.length > 1 ? ["están", "los"] : ["está", "lo"];
+  console.log(`  ⚠️  ${top.join(", ")} ya ${esta} en el repo: el .gitignore no ${lo} saca. Para dejar de versionar${lo} sin borrar tus archivos:`);
+  console.log(`     git rm -r --cached ${top.join(" ")}   (y haz commit)`);
 }
 
 // ---------- composición de CLAUDE.md ----------
@@ -1215,6 +1262,8 @@ async function main() {
   }
   // --pi se recuerda en el manifiesto: un --update posterior no la pierde.
   const withPi = FLAGS.pi || Boolean(prevManifest && prevManifest.pi);
+  // --local también; --no-local la olvida (las líneas del .gitignore las quita la persona).
+  const withLocal = !FLAGS.noLocal && (FLAGS.local || Boolean(prevManifest && prevManifest.local));
   const piDir = path.join(CWD, ".pi");
 
   // backup
@@ -1268,7 +1317,7 @@ async function main() {
     reportLayer(piLayer);
   }
   if (!FLAGS.dryRun) {
-    const m = { version: VERSION, stacks, files: { ...remembered, ...layer.next }, ...(withPi ? { pi: { files: piLayer.next } } : {}) };
+    const m = { version: VERSION, stacks, files: { ...remembered, ...layer.next }, ...(withPi ? { pi: { files: piLayer.next } } : {}), ...(withLocal ? { local: true } : {}) };
     fs.writeFileSync(manifestPath, JSON.stringify(m, null, 2) + "\n");
   }
 
@@ -1276,7 +1325,7 @@ async function main() {
   console.log("\n📝 Definición del proyecto y CLAUDE.md...");
   const hasProject = await scaffoldProject();
   composeClaudeMd(hasProject);
-  ensureGitignore(withPi);
+  ensureGitignore(withPi, withLocal);
   await scaffoldEnvExample();
 
   // 3) restos de Ruflo (solo lectura)
@@ -1355,7 +1404,11 @@ async function main() {
   console.log("\n✅ Listo.");
   console.log("   • Capa base coherente aplicada en .claude/ (agentes, skills, helpers, settings, comandos)");
   console.log(`   • CLAUDE.md compuesto (proyecto + baseline) y reglas del stack en .claude/rules/kit/: ${describeStacks(stacks)}`);
-  console.log("   • Memoria: la nativa de Claude Code + la de agente en .claude/agent-memory/ (versionada); .gitignore actualizado");
+  console.log(
+    withLocal
+      ? `   • Local (--local): ${localPaths(withPi).join(", ")} no se versionan; quien clone el repo instala el kit por su cuenta`
+      : "   • Memoria: la nativa de Claude Code + la de agente en .claude/agent-memory/ (versionada); .gitignore actualizado"
+  );
   console.log("   • Siguiente paso: abre Claude Code y corre /project-context para rellenar CLAUDE.project.md");
   if (withPi) {
     console.log("\n🧩 Pi Agent (capa .pi/):");

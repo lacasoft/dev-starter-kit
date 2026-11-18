@@ -512,3 +512,75 @@ test("--dry-run --pi no escribe nada", () => {
   assert.deepEqual(fs.readdirSync(dir), ["package.json"]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+// ---- .gitignore: lo común y --local ----
+// git check-ignore dice qué ignora git de verdad: no basta con que la línea esté escrita.
+function ignorados(dir, rutas) {
+  const r = spawnSync("git", ["check-ignore", "--no-index", ...rutas], { cwd: dir, encoding: "utf8" });
+  return r.stdout.split("\n").filter(Boolean);
+}
+function repoNest() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-gi-"));
+  spawnSync("git", ["init", "-q"], { cwd: dir });
+  fs.writeFileSync(path.join(dir, "package.json"), '{"name":"x","dependencies":{"@nestjs/core":"^10"}}');
+  return dir;
+}
+const CONFIG = ["CLAUDE.md", "CLAUDE.project.md", ".claude/settings.json", ".pi/settings.json"];
+
+test(".gitignore ignora .DS_Store y *.log, y por defecto versiona la configuración del kit", () => {
+  const dir = repoNest();
+  instalar(dir, ["--pi"]);
+  assert.deepEqual(ignorados(dir, [".DS_Store", "src/.DS_Store", "npm-debug.log", ...CONFIG]), [".DS_Store", "src/.DS_Store", "npm-debug.log"]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("--local no versiona CLAUDE.md, CLAUDE.project.md, .claude/ ni .pi/, y deja los ejemplos de env", () => {
+  const dir = repoNest();
+  const out = instalar(dir, ["--local", "--pi"]);
+  assert.deepEqual(ignorados(dir, [...CONFIG, ".env", ".env.example"]), [...CONFIG, ".env"]);
+  const gi = fs.readFileSync(path.join(dir, ".gitignore"), "utf8").split("\n");
+  assert.ok(!gi.includes(".claude/memory/"), "con .claude/ entero ignorado, sus subcarpetas sobran");
+  assert.equal(leerJSON(path.join(dir, ".claude/.kit-manifest.json")).local, true);
+  assert.match(out, /no se versionan/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("--update recuerda --local y no duplica líneas; --no-local la olvida y avisa del bloque", () => {
+  const dir = repoNest();
+  instalar(dir, ["--local"]);
+  const antes = fs.readFileSync(path.join(dir, ".gitignore"), "utf8");
+  instalar(dir, ["--update"]);
+  assert.equal(fs.readFileSync(path.join(dir, ".gitignore"), "utf8"), antes);
+  assert.equal(leerJSON(path.join(dir, ".claude/.kit-manifest.json")).local, true);
+  const out = instalar(dir, ["--update", "--no-local"]);
+  assert.equal(leerJSON(path.join(dir, ".claude/.kit-manifest.json")).local, undefined);
+  assert.match(out, /Quita a mano el bloque/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("--local avisa si la configuración ya está en el repo (el .gitignore no la saca)", () => {
+  const dir = repoNest();
+  instalar(dir);
+  spawnSync("git", ["add", "-A"], { cwd: dir });
+  spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "base"], { cwd: dir });
+  assert.match(instalar(dir, ["--update", "--local"]), /git rm -r --cached \.claude CLAUDE\.md CLAUDE\.project\.md/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("un /.env existente no basta: el kit agrega .env, que también cubre apps/api/.env", () => {
+  const dir = repoNest();
+  fs.writeFileSync(path.join(dir, ".gitignore"), "/.env\n");
+  instalar(dir);
+  assert.deepEqual(ignorados(dir, ["apps/api/.env"]), ["apps/api/.env"]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("--local reconoce /.claude o .claude sin barra como la misma línea", () => {
+  const dir = repoNest();
+  fs.writeFileSync(path.join(dir, ".gitignore"), "/.claude\nCLAUDE.md\n");
+  instalar(dir, ["--local"]);
+  const gi = fs.readFileSync(path.join(dir, ".gitignore"), "utf8").split("\n");
+  assert.equal(gi.filter((l) => /^\/?\.claude\/?$/.test(l)).length, 1);
+  assert.equal(gi.filter((l) => l === "CLAUDE.md").length, 1);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

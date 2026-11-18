@@ -4,6 +4,18 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/) y [SemVer](htt
 
 ## [No publicado]
 
+## [3.7.0] - 2026-11-18
+
+### Notas de actualización
+- `npx -y github:lacasoft/dev-starter-kit#v3.7.0 --update --yes` agrega `.DS_Store` y `*.log` al `.gitignore`. Para dejar de subir la configuración del kit al repo, agrega `--local`. Si ya estaba en el repo, el instalador te da el `git rm -r --cached` que la saca sin borrar tus archivos.
+
+### Added
+- **`--local`: la configuración del kit no se sube al repo.** Agrega `CLAUDE.md`, `CLAUDE.project.md`, `.claude/` y, con `--pi`, `.pi/` al `.gitignore`, en un bloque aparte con su comentario. Sirve para repos de clientes u open source donde no quieres subir tu configuración; cada persona instala el kit por su cuenta.
+  - `--update` la recuerda (manifiesto) y `--no-local` la olvida. El bloque del `.gitignore` lo quitas tú, y el instalador te lo recuerda.
+  - Si esos archivos ya estaban en el repo, avisa: el `.gitignore` no los saca, y da el `git rm -r --cached` exacto.
+  - Por defecto no cambia nada: se siguen versionando, para que quien clone tenga las skills, los hooks de seguridad, los permisos y la memoria de equipo, y para que `.pi/` encuentre `../.claude/skills`.
+- El `.gitignore` del proyecto ignora `.DS_Store` y `*.log`.
+
 ## [3.6.0] - 2026-11-03
 
 ### Notas de actualización
